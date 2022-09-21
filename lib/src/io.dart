@@ -52,6 +52,8 @@ Future<bool> callProcess(
     arguments,
     mode: ProcessStartMode.inheritStdio,
     workingDirectory: workingDirectory,
+    // Needed to resolve .bat files on Windows.
+    runInShell: Platform.isWindows,
   );
 
   return (exitCode = await process.exitCode) == 0;
