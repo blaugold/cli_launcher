@@ -1,1 +1,6 @@
-export 'src/launcher.dart' show CliLauncher, LaunchPhase;
+export 'src/launcher.dart'
+    show
+        Launcher,
+        runGlobalInstallation,
+        InstallationLocation,
+        PackageExecutable;

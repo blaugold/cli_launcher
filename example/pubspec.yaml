@@ -8,7 +8,13 @@ environment:
 executables:
   example:
 
+cli_launcher:
+  example:
+    launcherFile: package:cli_launcher_example/src/launcher.dart
+    launcherClass: ExampleLauncher
+
 dependencies:
   cli_launcher: any
+
 dev_dependencies:
   test: ^1.21.6
