@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cli_util/cli_logging.dart';
 
@@ -100,7 +101,12 @@ Future<void> _launchLocalInstallation(
   }
 
   logger.trace('Running launch script at "${context.launchScriptPath}".');
-  await callProcess(context.launchScriptPath, arguments);
+  await callProcess(
+    context.launchScriptPath,
+    arguments,
+    // On Windows the launch script is a PowerShell script.
+    usePowerShell: Platform.isWindows,
+  );
 }
 
 Future<void> runLocalInstallation(

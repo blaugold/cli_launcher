@@ -103,14 +103,15 @@ Future<bool> callProcess(
   String executable,
   List<String> arguments, {
   String? workingDirectory,
+  bool usePowerShell = false,
 }) async {
   final process = await Process.start(
-    executable,
-    arguments,
+    usePowerShell ? 'powershell' : executable,
+    usePowerShell ? [executable, ...arguments] : arguments,
     mode: ProcessStartMode.inheritStdio,
     workingDirectory: workingDirectory,
     // Needed to resolve .bat files on Windows.
-    runInShell: Platform.isWindows,
+    runInShell: usePowerShell ? false : Platform.isWindows,
   );
 
   return (exitCode = await process.exitCode) == 0;
