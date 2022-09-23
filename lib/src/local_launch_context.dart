@@ -107,29 +107,29 @@ Future<LocalLaunchContext?> resolveLocalLaunchContextForDirectory({
       // that a package_config.json file exists.
       (await findPackageConfig(Directory(directory), recurse: false))!;
 
-  final cliPackageRoot = packageConfig.packages
-      .firstWhere(
-        (resolvedPackage) => resolvedPackage.name == executable.package,
-      )
+  final executablePackageRoot = packageConfig.packages
+      .firstWhere((package) => package.name == executable.package)
       .root;
 
-  final cliPackagePubspecFile = pubspecPath(cliPackageRoot.toFilePath());
-  final cliPackagePubspecString = readFileAsString(cliPackagePubspecFile);
-  YamlNode cliPackagePubspecYaml;
+  final executablePackagePubspecFile =
+      pubspecPath(executablePackageRoot.toFilePath());
+  final executablePackagePubspecString =
+      readFileAsString(executablePackagePubspecFile);
+  YamlNode executablePackagePubspecYaml;
   try {
-    cliPackagePubspecYaml = loadYamlNode(
-      cliPackagePubspecString,
-      sourceUrl: Uri.parse(cliPackagePubspecFile),
+    executablePackagePubspecYaml = loadYamlNode(
+      executablePackagePubspecString,
+      sourceUrl: Uri.parse(executablePackagePubspecFile),
     );
   } catch (error) {
     throw CliLauncherException(
       'Found invalid pubspec.yaml file while trying to find a local '
-      'installation of "$executable" at $cliPackagePubspecFile:\n$error',
+      'installation of "$executable" at $executablePackagePubspecFile:\n$error',
     );
   }
 
   final launchConfig = LaunchConfig.fromPubspecYaml(
-    node: cliPackagePubspecYaml,
+    node: executablePackagePubspecYaml,
   );
   if (launchConfig == null) {
     return null;
@@ -155,7 +155,7 @@ void _checkPubDependenciesAreUpToDate({
     throw CliLauncherException(
       'Cannot launch local installation of "$executable" '
       'because the pub dependencies are out of date.\nRun "dart pub get" in '
-      '$directory to bring them up to date.',
+      '"$directory" to bring them up to date.',
     );
   }
 }

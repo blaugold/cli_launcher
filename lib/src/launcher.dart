@@ -149,7 +149,7 @@ bool _localInstallationIsUpToDate(LocalLaunchContext context) {
     return false;
   }
 
-  // TODO: Handle changes in path dependencies.
+  // TODO: For local plugins, check if the plugin has been updated.
 
   return true;
 }
