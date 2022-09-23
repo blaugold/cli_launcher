@@ -62,14 +62,26 @@ Future<String> _buildMainDartFile(LocalLaunchContext context) async {
   return '''
 // DO NOT EDIT. This file is generated.
 // ignore_for_file: implementation_imports
-import 'package:cli_launcher/cli_launcher.dart' as _cli_launcher;
-import 'package:cli_launcher/src/launcher.dart' as _cli_launcher_impl;
+import 'package:cli_launcher/src/internal.dart' as _internal;
 import '${context.executableConfig.launcherFile}' as _launcher_file;
 
 Future<void> main(List<String> arguments) async {
-  await _cli_launcher_impl.runLocalInstallation(arguments, () async {
+  final context = _internal.LocalLaunchContext(
+    installationPackagePath: r'${context.installationPackagePath}',
+    executable: _internal.PackageExecutable(
+      r'${context.executable.package}',
+      r'${context.executable.executable}',
+    ),
+    executableConfig: _internal.ExecutableConfig(
+      name: r'${context.executableConfig.name}',
+      launcherFile: Uri.parse(r'${context.executableConfig.launcherFile}'),
+      launcherClass: r'${context.executableConfig.launcherClass}',
+    ),
+  );
+
+  await _internal.runLocalInstallation(arguments, context, () async {
     final launcher = _launcher_file.${context.executableConfig.launcherClass}();
-    await launcher.run(arguments, _cli_launcher.InstallationLocation.local);
+    await launcher.run(arguments, _internal.InstallationLocation.local);
   });
 }
 ''';

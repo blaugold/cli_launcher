@@ -4,12 +4,18 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'logging.dart';
-import 'utils.dart';
 
 void ensureDirectoryExists(String path) {
   final directory = Directory(path);
   if (!directory.existsSync()) {
     directory.createSync(recursive: true);
+  }
+}
+
+void removeDirectory(String path, {bool recursive = true}) {
+  final directory = Directory(path);
+  if (directory.existsSync()) {
+    directory.deleteSync(recursive: recursive);
   }
 }
 
@@ -56,12 +62,6 @@ Iterable<String> walkUpwards(String path) sync* {
   }
 }
 
-void _logProcessOutput(void Function(String) log, String event) {
-  for (final line in event.withoutTrailingNewLine.lines) {
-    log(line);
-  }
-}
-
 Future<void> runProcess(
   String executable,
   List<String> arguments, {
@@ -79,16 +79,22 @@ Future<void> runProcess(
   final stdout = <String>[];
   final stderr = <String>[];
 
-  process.stdout.transform(utf8.decoder).listen((event) {
-    stdout.add(event);
+  process.stdout
+      .transform(utf8.decoder)
+      .transform(LineSplitter())
+      .listen((line) {
+    stdout.add(line);
     if (logger.isVerbose) {
-      _logProcessOutput(logger.stdout, event);
+      logger.stdout(line);
     }
   });
-  process.stderr.transform(utf8.decoder).listen((event) {
-    stderr.add(event);
+  process.stderr
+      .transform(utf8.decoder)
+      .transform(LineSplitter())
+      .listen((line) {
+    stderr.add(line);
     if (logger.isVerbose) {
-      _logProcessOutput(logger.stderr, event);
+      logger.stderr(line);
     }
   });
 

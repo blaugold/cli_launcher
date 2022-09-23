@@ -57,9 +57,8 @@ Future<void> _runGlobalInstallation(
 ) async {
   logger.trace('Launching ${launcher.executable}.');
 
-  final localLaunchContext = await resolveLocalLaunchContext(
-    executable: launcher.executable,
-  );
+  final localLaunchContext =
+      await resolveLocalLaunchContext(executable: launcher.executable);
 
   if (localLaunchContext != null) {
     return await _launchLocalInstallation(
@@ -102,16 +101,55 @@ Future<void> _launchLocalInstallation(
 
 Future<void> runLocalInstallation(
   List<String> arguments,
+  LocalLaunchContext context,
   Future<void> Function() run,
 ) =>
     cliLauncherShell(
       'local_installation',
       arguments,
-      () => _runLocalInstallation(run),
+      () => _runLocalInstallation(arguments, context, run),
     );
 
-Future<void> _runLocalInstallation(Future<void> Function() run) async {
-  // TODO: Check if the launch script and snapshot are up to date.
+Future<void> _runLocalInstallation(
+  List<String> arguments,
+  LocalLaunchContext context,
+  Future<void> Function() run,
+) async {
+  if (_localInstallationIsUpToDate(context)) {
+    await run();
+  } else {
+    logger
+        .stdout('Local installation of ${context.executable} is out of date.');
+    removeDirectory(context.cacheDirectory);
+    logger.trace('Removed cache directory at "${context.cacheDirectory}".');
+    await callProcess(context.executable.executable, arguments);
+  }
+}
 
-  await run();
+bool _localInstallationIsUpToDate(LocalLaunchContext context) {
+  if (!fileExists(context.launchScriptPath)) {
+    return false;
+  }
+
+  if (fileIsNewerThanOtherFile(
+    context.pubspecLockPath,
+    context.launchScriptPath,
+  )) {
+    return false;
+  }
+
+  if (!fileExists(context.snapshotPath)) {
+    return false;
+  }
+
+  if (fileIsNewerThanOtherFile(
+    context.pubspecLockPath,
+    context.snapshotPath,
+  )) {
+    return false;
+  }
+
+  // TODO: Handle changes in path dependencies.
+
+  return true;
 }

@@ -23,6 +23,8 @@ class LocalLaunchContext {
   final PackageExecutable executable;
   final ExecutableConfig executableConfig;
 
+  late final pubspecLockPath = p.join(installationPackagePath, 'pubspec.lock');
+
   late final cacheDirectory = p.join(
     installationPackagePath,
     '.dart_tool',
