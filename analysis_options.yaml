@@ -1,5 +1,11 @@
 include: package:lints/recommended.yaml
 
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
 linter:
   rules:
     - camel_case_types
@@ -9,9 +15,3 @@ linter:
     - prefer_final_fields
     - prefer_final_locals
     - avoid_slow_async_io
-
-analyzer:
-  language:
-    strict-casts: true
-    strict-inference: true
-    strict-raw-types: true

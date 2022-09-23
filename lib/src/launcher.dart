@@ -6,12 +6,19 @@ import 'local_launch_context.dart';
 import 'logging.dart';
 import 'shell.dart';
 
+/// The installation location of a package executable.
 enum InstallationLocation {
+  /// The executable is installed globally in the pub cache.
   global,
+
+  /// The executable is installed locally in a root package that depends on the
+  /// package containing the executable.
   local,
 }
 
+/// Identifies an [executable] that is provided through a [package].
 class PackageExecutable {
+  /// Creates a new [PackageExecutable].
   PackageExecutable(this.package, this.executable);
 
   factory PackageExecutable.parse(String value) {
@@ -26,21 +33,82 @@ class PackageExecutable {
     return PackageExecutable(parts[0], parts[1]);
   }
 
+  /// The name of the package that provides the executable.
   final String package;
+
+  /// The name of the executable.
   final String executable;
 
   @override
   String toString() => '$package:$executable';
 }
 
+/// Interface for launching an [executable] through `cli_launcher`.
+///
+/// Packages that want to launch an [executable] through `cli_launcher` have to
+/// define a class that **extends** (not implements) this class for each of
+/// their executables.
+///
+/// ```
+/// // lib/src/launcher.dart
+///
+/// class FooLauncher extends Launcher {
+///   FooLauncher() : super(PackageExecutable('foo_pkg', 'foo'));
+///
+///   @override
+///   void run(List<String> arguments, InstallationLocation location) {
+///     print('Running ${location} "foo" with arguments: $arguments');
+///   }
+/// }
+/// ```
+///
+/// This class must be declared in the package's `pubspec.yaml` file:
+///
+/// ```yaml
+/// #...
+///
+/// executables:
+///   foo:
+///
+/// cli_launcher:
+///   foo:
+///     launcherFile: package:foo_pkg/src/launcher.dart
+///     launcherClass: FooLauncher
+/// ```
+///
+/// The global version of an executable has to be launched in the Dart script of
+/// the executable in `bin`:
+///
+/// ```dart no_analyze
+/// // bin/foo.dart
+///
+/// import 'package:cli_launcher/cli_launcher.dart';
+///
+/// import '../lib/src/launcher.dart';
+///
+/// Future<void> main(List<String> arguments) =>
+///     runGlobalInstallation(arguments, FooLauncher());
+/// ```
 abstract class Launcher {
+  /// Constructor for subclasses.
   Launcher(this.executable);
 
+  /// Identifier for the executable that is launched by this [Launcher].
   final PackageExecutable executable;
 
+  /// Starts running the code of the executable.
+  ///
+  /// The [arguments] are the arguments that were passed to the executable.
+  ///
+  /// The [location] indicates where the executable is installed.
   FutureOr<void> run(List<String> arguments, InstallationLocation location);
 }
 
+/// Launches the global installation of an executable.
+///
+/// The [arguments] are the arguments that were passed to the Dart program.
+///
+/// The [launcher] is the [Launcher] that is used to run the executable.
 Future<void> runGlobalInstallation(
   List<String> arguments,
   Launcher launcher,

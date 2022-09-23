@@ -1,6 +1,6 @@
 name: cli_launcher
 description:
-  CLI development utility to support launching of locally installed versions.
+  CLI development utility to support launching locally installed versions.
 version: 0.0.0
 repository: https://github.com/blaugold/cli_launcher
 issue_tracker: https://github.com/blaugold/cli_launcher/issues
