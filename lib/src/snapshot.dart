@@ -1,25 +1,18 @@
 import 'dart:io';
 
-import 'package:cli_util/cli_logging.dart';
-
 import 'error.dart';
 import 'io.dart';
 import 'launcher.dart';
 import 'local_launch_context.dart';
-import 'logging.dart';
+import 'shell.dart';
 
-Future<void> generateSnapshot(List<String> arguments) async {
-  final logger = createLogger(arguments);
+Future<void> generateSnapshot(List<String> arguments) => cliLauncherShell(
+      'generate_snapshot',
+      arguments,
+      () => _generateSnapshot(arguments),
+    );
 
-  await withErrorHandling(
-    logger,
-    () => _generateSnapshot(logger, arguments),
-  );
-}
-
-Future<void> _generateSnapshot(Logger logger, List<String> arguments) async {
-  logger.trace('Generating snapshot.');
-
+Future<void> _generateSnapshot(List<String> arguments) async {
   if (arguments.isEmpty) {
     throw CliLauncherException(
       'Expected a package executable to generate snapshot for.',
@@ -39,7 +32,6 @@ Future<void> _generateSnapshot(Logger logger, List<String> arguments) async {
   final localLaunchContext = await resolveLocalLaunchContextForDirectory(
     directory: currentDirectory,
     executable: executable,
-    logger: logger,
   );
 
   if (localLaunchContext == null) {
@@ -63,7 +55,6 @@ Future<void> _generateSnapshot(Logger logger, List<String> arguments) async {
       '-o',
       localLaunchContext.snapshotPath
     ],
-    logger: logger,
   );
 }
 

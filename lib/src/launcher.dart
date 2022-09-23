@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cli_util/cli_logging.dart';
-
-import 'error.dart';
 import 'io.dart';
 import 'local_launch_context.dart';
 import 'logging.dart';
+import 'shell.dart';
 
 enum InstallationLocation {
   global,
@@ -46,30 +44,25 @@ abstract class Launcher {
 Future<void> runGlobalInstallation(
   List<String> arguments,
   Launcher launcher,
-) async {
-  final logger = createLogger(arguments);
-
-  await withErrorHandling(
-    logger,
-    () => _runGlobalInstallation(logger, arguments, launcher),
-  );
-}
+) =>
+    cliLauncherShell(
+      'global_installation',
+      arguments,
+      () => _runGlobalInstallation(arguments, launcher),
+    );
 
 Future<void> _runGlobalInstallation(
-  Logger logger,
   List<String> arguments,
   Launcher launcher,
 ) async {
-  logger.trace('Launching ${launcher.executable} from global entrypoint.');
+  logger.trace('Launching ${launcher.executable}.');
 
   final localLaunchContext = await resolveLocalLaunchContext(
     executable: launcher.executable,
-    logger: logger,
   );
 
   if (localLaunchContext != null) {
     return await _launchLocalInstallation(
-      logger,
       arguments,
       localLaunchContext,
     );
@@ -79,7 +72,6 @@ Future<void> _runGlobalInstallation(
 }
 
 Future<void> _launchLocalInstallation(
-  Logger logger,
   List<String> arguments,
   LocalLaunchContext context,
 ) async {
@@ -96,7 +88,6 @@ Future<void> _launchLocalInstallation(
         context.executable.toString(),
       ],
       workingDirectory: context.installationPackagePath,
-      logger: logger,
     );
   }
 
@@ -112,19 +103,14 @@ Future<void> _launchLocalInstallation(
 Future<void> runLocalInstallation(
   List<String> arguments,
   Future<void> Function() run,
-) async {
-  final logger = createLogger(arguments);
+) =>
+    cliLauncherShell(
+      'local_installation',
+      arguments,
+      () => _runLocalInstallation(run),
+    );
 
-  await withErrorHandling(
-    logger,
-    () => _runLocalInstallation(logger, run),
-  );
-}
-
-Future<void> _runLocalInstallation(
-  Logger logger,
-  Future<void> Function() run,
-) async {
+Future<void> _runLocalInstallation(Future<void> Function() run) async {
   // TODO: Check if the launch script and snapshot are up to date.
 
   await run();

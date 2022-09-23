@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cli_util/cli_logging.dart';
 import 'package:path/path.dart' as p;
+
+import 'logging.dart';
+import 'utils.dart';
 
 void ensureDirectoryExists(String path) {
   final directory = Directory(path);
@@ -54,16 +56,22 @@ Iterable<String> walkUpwards(String path) sync* {
   }
 }
 
+void _logProcessOutput(void Function(String) log, String event) {
+  for (final line in event.withoutTrailingNewLine.lines) {
+    log(line);
+  }
+}
+
 Future<void> runProcess(
   String executable,
   List<String> arguments, {
   String? workingDirectory,
-  required Logger logger,
 }) async {
   final process = await Process.start(
     executable,
     arguments,
     workingDirectory: workingDirectory,
+    environment: updateEnvironmentToPropagateLogging(),
     // Needed to resolve .bat files on Windows.
     runInShell: Platform.isWindows,
   );
@@ -74,13 +82,13 @@ Future<void> runProcess(
   process.stdout.transform(utf8.decoder).listen((event) {
     stdout.add(event);
     if (logger.isVerbose) {
-      logger.stdout(event);
+      _logProcessOutput(logger.stdout, event);
     }
   });
   process.stderr.transform(utf8.decoder).listen((event) {
     stderr.add(event);
     if (logger.isVerbose) {
-      logger.stderr(event);
+      _logProcessOutput(logger.stderr, event);
     }
   });
 
@@ -110,6 +118,7 @@ Future<bool> callProcess(
     usePowerShell ? [executable, ...arguments] : arguments,
     mode: ProcessStartMode.inheritStdio,
     workingDirectory: workingDirectory,
+    environment: updateEnvironmentToPropagateLogging(),
     // Needed to resolve .bat files on Windows.
     runInShell: usePowerShell ? false : Platform.isWindows,
   );

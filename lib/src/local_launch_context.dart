@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:cli_util/cli_logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:pubspec_parse/pubspec_parse.dart';
@@ -10,6 +9,7 @@ import 'error.dart';
 import 'io.dart';
 import 'launch_config.dart';
 import 'launcher.dart';
+import 'logging.dart';
 import 'pub.dart';
 
 class LocalLaunchContext {
@@ -41,7 +41,6 @@ class LocalLaunchContext {
 
 Future<LocalLaunchContext?> resolveLocalLaunchContext({
   required PackageExecutable executable,
-  required Logger logger,
 }) async {
   final currentDirectory = Directory.current.path;
 
@@ -53,7 +52,6 @@ Future<LocalLaunchContext?> resolveLocalLaunchContext({
     final context = await resolveLocalLaunchContextForDirectory(
       directory: directory,
       executable: executable,
-      logger: logger,
     );
     if (context != null) {
       logger.trace('Resolved local launch context for "$directory".');
@@ -69,7 +67,6 @@ Future<LocalLaunchContext?> resolveLocalLaunchContext({
 Future<LocalLaunchContext?> resolveLocalLaunchContextForDirectory({
   required String directory,
   required PackageExecutable executable,
-  required Logger logger,
 }) async {
   final pubspecFile = pubspecPath(directory);
   if (!fileExists(pubspecFile)) {

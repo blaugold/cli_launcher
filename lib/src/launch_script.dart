@@ -1,28 +1,18 @@
 import 'dart:io';
 
-import 'package:cli_util/cli_logging.dart';
-
 import 'error.dart';
 import 'io.dart';
 import 'launcher.dart';
 import 'local_launch_context.dart';
-import 'logging.dart';
+import 'shell.dart';
 
-Future<void> generateLaunchScript(List<String> arguments) async {
-  final logger = createLogger(arguments);
+Future<void> generateLaunchScript(List<String> arguments) => cliLauncherShell(
+      'generate_launch_script',
+      arguments,
+      () => _generateLaunchScript(arguments),
+    );
 
-  await withErrorHandling(
-    logger,
-    () => _generateLaunchScript(logger, arguments),
-  );
-}
-
-Future<void> _generateLaunchScript(
-  Logger logger,
-  List<String> arguments,
-) async {
-  logger.trace('Generating launch script.');
-
+Future<void> _generateLaunchScript(List<String> arguments) async {
   if (arguments.isEmpty) {
     throw CliLauncherException(
       'Expected a package executable to generate the launch script for.',
@@ -42,7 +32,6 @@ Future<void> _generateLaunchScript(
   final localLaunchContext = await resolveLocalLaunchContextForDirectory(
     directory: currentDirectory,
     executable: executable,
-    logger: logger,
   );
 
   if (localLaunchContext == null) {
