@@ -14,7 +14,7 @@ cli_launcher:
     launcherClass: ExampleLauncher
 
 dependencies:
-  cli_launcher: any
+  cli_launcher: ^0.1.1
 
 dev_dependencies:
   test: ^1.21.6
