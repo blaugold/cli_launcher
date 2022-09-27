@@ -139,7 +139,7 @@ class ExecutableConfig {
 }
 
 class CliLauncherConfigException extends CliLauncherException {
-  CliLauncherConfigException(this.node, super.message);
+  CliLauncherConfigException(this.node, String message) : super(message);
 
   final YamlNode node;
 
