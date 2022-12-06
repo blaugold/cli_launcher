@@ -19,6 +19,7 @@ typedef EntryPoint = FutureOr<void> Function(
 /// It is provided to the [EntryPoint] function of an executable.
 ///
 /// See also:
+///
 /// - [LaunchConfig.entrypoint] for defining the executable entry point.
 class LaunchContext {
   /// Creates a new launch context.
