@@ -17,62 +17,80 @@ void main() {
     );
   });
 
-  test('run in package containing executable', () {
-    final output =
-        runExampleCli(workingDirectory: 'fixture_packages/example_v1');
+  group('run in source package', () {
+    test('with same local and global version', () {
+      final output =
+          runExampleCli(workingDirectory: 'fixture_packages/example_v1');
 
-    expect(
-      output,
-      matches(
-        RegExp(
-          '.*Running v1 with local version 1.0.0 and global version null.*',
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running v1 with local version 1.0.0 and global version null.*',
+          ),
         ),
-      ),
-    );
+      );
+    });
+
+    test('with different local and global version', () {
+      final output =
+          runExampleCli(workingDirectory: 'fixture_packages/example_v2');
+
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
+          ),
+        ),
+      );
+    });
   });
 
-  test('local and global version are the same', () {
-    final output =
-        runExampleCli(workingDirectory: './fixture_packages/consumer_v1');
+  group('run in consumer package', () {
+    test('with same local and global version', () {
+      final output =
+          runExampleCli(workingDirectory: './fixture_packages/consumer_v1');
 
-    expect(
-      output,
-      matches(
-        RegExp(
-          '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
+          ),
         ),
-      ),
-    );
-  });
+      );
+    });
 
-  test('local and global version are not same', () {
-    final output =
-        runExampleCli(workingDirectory: './fixture_packages/consumer_v2');
+    test('with different local and global version', () {
+      final output =
+          runExampleCli(workingDirectory: './fixture_packages/consumer_v2');
 
-    expect(
-      output,
-      matches(
-        RegExp(
-          '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
+          ),
         ),
-      ),
-    );
-  });
+      );
+    });
 
-  test('run local version within sub directory of consuming package', () {
-    final dir = Directory('./fixture_packages/consumer_v2/sub')
-      ..createSync(recursive: true);
+    test('with different local and global version in sub directory', () {
+      final dir = Directory('./fixture_packages/consumer_v2/sub')
+        ..createSync(recursive: true);
 
-    final output = runExampleCli(workingDirectory: dir.path);
+      final output = runExampleCli(workingDirectory: dir.path);
 
-    expect(
-      output,
-      matches(
-        RegExp(
-          '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
+          ),
         ),
-      ),
-    );
+      );
+    });
   });
 }
 

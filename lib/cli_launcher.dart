@@ -103,6 +103,7 @@ class ExecutableInstallation {
   ExecutableInstallation({
     String? version,
     required this.name,
+    required this.isSelf,
     required this.packageRoot,
   }) : _version = version;
 
@@ -111,6 +112,13 @@ class ExecutableInstallation {
 
   /// The version of the package which contains the executable.
   late final String version = _version ?? _loadVersion();
+
+  /// Whether [packageRoot] is the root directory of the package that contains
+  /// the executable.
+  ///
+  /// This is typically true when launching the executable during development
+  /// from withing the package source directory.
+  final bool isSelf;
 
   /// The root directory of the package in which the executable is installed.
   final Directory packageRoot;
@@ -174,6 +182,7 @@ class ExecutableInstallation {
     return ExecutableInstallation(
       version: json['v']! as String,
       name: ExecutableName._fromJson((json['e']! as Map).cast()),
+      isSelf: json['s']! as bool,
       packageRoot: Directory(json['p']! as String),
     );
   }
@@ -182,6 +191,7 @@ class ExecutableInstallation {
     return {
       'v': version,
       'e': name._toJson(),
+      's': isSelf,
       'p': packageRoot.path,
     };
   }
@@ -211,6 +221,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
 
   return ExecutableInstallation(
     name: executable,
+    isSelf: false,
     packageRoot: packageRoot,
   );
 }
@@ -226,6 +237,7 @@ ExecutableInstallation? _findLocalInstallation(
   final pubspecFile = File(path.join(start.path, 'pubspec.yaml'));
   if (pubspecFile.existsSync()) {
     final pubspecString = pubspecFile.readAsStringSync();
+    String? name;
     YamlMap? dependencies;
     YamlMap? devDependencies;
 
@@ -233,6 +245,7 @@ ExecutableInstallation? _findLocalInstallation(
       final pubspecYaml =
           loadYamlDocument(pubspecString, sourceUrl: pubspecFile.uri);
       final pubspec = pubspecYaml.contents as YamlMap;
+      name = pubspec['name'] as String?;
       dependencies = pubspec['dependencies'] as YamlMap?;
       devDependencies = pubspec['dev_dependencies'] as YamlMap?;
     } catch (error, stackTrace) {
@@ -241,12 +254,16 @@ ExecutableInstallation? _findLocalInstallation(
       );
     }
 
-    if ((dependencies != null &&
+    final isSelf = name == executable.package;
+
+    if (isSelf ||
+        (dependencies != null &&
             dependencies.containsKey(executable.package)) ||
         (devDependencies != null &&
             devDependencies.containsKey(executable.package))) {
       return ExecutableInstallation(
         name: executable,
+        isSelf: isSelf,
         packageRoot: start,
       );
     }
@@ -331,6 +348,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
       directory: Directory.current,
       localInstallation: ExecutableInstallation(
         name: config.name,
+        isSelf: false,
         packageRoot: Directory.current,
       ),
     );
@@ -363,9 +381,10 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
   }
 
   if (localInstallation != null &&
-      localInstallation.version != globalInstallation.version) {
-    // We found a local installation which has a different version than the
-    // global install so we launch the local installation.
+      (localInstallation.isSelf ||
+          localInstallation.version != globalInstallation.version)) {
+    // We found a local installation which is different from the global
+    // installation so we launch the local installation.
     final process = await Process.start(
       'dart',
       ['run', config.name.toString(), ...args],
