@@ -1,0 +1,14 @@
+name: cli_launcher_example
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=2.18.1 <3.0.0'
+
+executables:
+  example:
+
+dependencies:
+  cli_launcher:
+    path: ../..
+

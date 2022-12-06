@@ -3,8 +3,6 @@ repository: https://github.com/blaugold/cli_launcher
 
 packages:
   - .
-  - example
-  - example/consumer
 
 ide:
   intellij: false
@@ -18,7 +16,7 @@ command:
 
 scripts:
   activate_example_cli:
-    run: cd example && dart pub global activate --source path .
+    run: cd fixture_packages/example_v1 && dart pub global activate --source path .
 
   format:
     exec: daco format .

@@ -5,52 +5,63 @@ import 'package:test/test.dart';
 
 void main() {
   test('run global version', () {
-    final output = runExampleCli(
-      // Run outside of the example package directory so that the global
-      // version is used.
-      workingDirectory: '..',
-    );
+    final output = runExampleCli(workingDirectory: '.');
 
     expect(
       output,
       matches(
         RegExp(
-          ".*Running global installation in Directory: '.*cli_launcher'.*",
+          '.*Running v1 with local version null and global version 1.0.0.*',
         ),
       ),
     );
   });
 
-  test('run local version within package containing executable', () {
-    final output = runExampleCli(
-      workingDirectory: '.',
-    );
+  test('run in package containing executable', () {
+    final output =
+        runExampleCli(workingDirectory: 'fixture_packages/example_v1');
 
     expect(
       output,
       matches(
         RegExp(
-          ".*Running local installation in Directory: '.*example'.*",
+          '.*Running v1 with local version 1.0.0 and global version null.*',
         ),
       ),
     );
   });
 
-  test('run local version within consuming package', () {
-    final output = runExampleCli(workingDirectory: './consumer');
+  test('local and global version are the same', () {
+    final output =
+        runExampleCli(workingDirectory: './fixture_packages/consumer_v1');
 
     expect(
       output,
       matches(
         RegExp(
-          ".*Running local installation in Directory: '.*consumer'.*",
+          '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
+        ),
+      ),
+    );
+  });
+
+  test('local and global version are not same', () {
+    final output =
+        runExampleCli(workingDirectory: './fixture_packages/consumer_v2');
+
+    expect(
+      output,
+      matches(
+        RegExp(
+          '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
         ),
       ),
     );
   });
 
   test('run local version within sub directory of consuming package', () {
-    final dir = Directory('consumer/sub')..createSync(recursive: true);
+    final dir = Directory('./fixture_packages/consumer_v2/sub')
+      ..createSync(recursive: true);
 
     final output = runExampleCli(workingDirectory: dir.path);
 
@@ -58,7 +69,7 @@ void main() {
       output,
       matches(
         RegExp(
-          ".*Running local installation in Directory: '.*sub'.*",
+          '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
         ),
       ),
     );
