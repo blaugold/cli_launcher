@@ -4,7 +4,8 @@
 CLI development utility to support launching locally installed versions.
 
 When the globally installed version of a CLI is launched and it finds a locally
-installed version of itself, it will launch the locally installed version.
+installed version of itself that is a different version, it will launch the
+locally installed version.
 
 Otherwise, the globally installed version will continue to run.
 
@@ -19,5 +20,3 @@ CLI executable.
 In addition, if the CLI is executed in the package that contains the CLI
 executable, the current version in that package will be launched. This is useful
 for development.
-
-See the API docs of `Launcher` for more details.
