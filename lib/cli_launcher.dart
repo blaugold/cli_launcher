@@ -331,18 +331,6 @@ LaunchContext? get _environmentLaunchContext {
   );
 }
 
-bool get _isRunningLocalInstallation =>
-    // The snapshot generate by pub for a locally installed executable lives
-    // somewhere within the `.dart_tool/pub` directory in the package.
-    // This heuristic detects an executable launched through
-    // `dart run <package>:<executable` as a local installation, as well as an
-    // executable that was globally installed from path, when executed within
-    // its source package.
-    path.isWithin(
-      path.join(Directory.current.path, '.dart_tool', 'pub'),
-      Platform.script.toFilePath(),
-    );
-
 /// Launches an executable with the given [args] and [config].
 ///
 /// ```dart
@@ -368,24 +356,6 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     // We restore the working directory from which the global installation was
     // launched before launching the local installation.
     Directory.current = launchContext.directory;
-
-    return config.entrypoint(args, launchContext);
-  }
-
-  if (_isRunningLocalInstallation) {
-    // We are running a local installation that was launched directly. We know
-    // that it was not launched by the global installation because the global
-    // installation would have provided the launch context through the
-    // environment.
-
-    launchContext = LaunchContext(
-      directory: Directory.current,
-      localInstallation: ExecutableInstallation(
-        name: config.name,
-        isSelf: false,
-        packageRoot: Directory.current,
-      ),
-    );
 
     return config.entrypoint(args, launchContext);
   }
