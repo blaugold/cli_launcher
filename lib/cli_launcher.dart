@@ -104,14 +104,16 @@ class ExecutableInstallation {
     String? version,
     required this.name,
     required this.isSelf,
+    bool? isFromPath,
     required this.packageRoot,
-  }) : _version = version;
+  })  : _version = version,
+        _isFromPath = isFromPath;
 
   /// The name of the executable.
   final ExecutableName name;
 
   /// The version of the package which contains the executable.
-  late final String version = _version ?? _loadVersion();
+  String get version => _version ??= _loadVersion();
 
   /// Whether [packageRoot] is the root directory of the package that contains
   /// the executable.
@@ -120,22 +122,35 @@ class ExecutableInstallation {
   /// from withing the package source directory.
   final bool isSelf;
 
+  /// Whether the package containing the executable is dependent on through a
+  /// path dependency, if known.
+  bool get isFromPath => _isFromPath ??= _loadIsFromPath();
+
   /// The root directory of the package in which the executable is installed.
   final Directory packageRoot;
 
-  /// The preloaded [version], if any.
-  final String? _version;
+  /// The loaded [version] value, if any.
+  String? _version;
 
-  String _loadVersion() {
+  /// The loaded [isFromPath] value, if any.
+  bool? _isFromPath;
+
+  late final _pubspecLockEntry = _loadPubspecLockEntry();
+
+  YamlMap? _loadPubspecLockEntry() {
     final pubspecLockFile = File(path.join(packageRoot.path, 'pubspec.lock'));
     final pubspecLockString = pubspecLockFile.readAsStringSync();
     final pubspecLockYaml =
         loadYamlDocument(pubspecLockString, sourceUrl: pubspecLockFile.uri);
     final contents = pubspecLockYaml.contents as YamlMap;
     final packages = contents['packages']! as YamlMap;
-    final package = packages[name.package] as YamlMap?;
-    if (package != null) {
-      return package['version']! as String;
+    return packages[name.package] as YamlMap?;
+  }
+
+  String _loadVersion() {
+    final entry = _pubspecLockEntry;
+    if (entry != null) {
+      return entry['version']! as String;
     }
 
     // The package is not in the lock file, so the executable must have been
@@ -148,6 +163,17 @@ class ExecutableInstallation {
         loadYamlDocument(pubspecString, sourceUrl: pubspecFile.uri);
     final pubspecContents = pubspecYaml.contents as YamlMap;
     return pubspecContents['version']! as String;
+  }
+
+  bool _loadIsFromPath() {
+    final entry = _pubspecLockEntry;
+    if (entry != null) {
+      return entry['source'] == 'path';
+    }
+
+    // The package is not in the lock file, so the executable must have been
+    // activated globally from path.
+    return true;
   }
 
   bool get _pubspecLockIsUpToDate {
@@ -180,18 +206,20 @@ class ExecutableInstallation {
 
   factory ExecutableInstallation._fromJson(Map<String, Object?> json) {
     return ExecutableInstallation(
-      version: json['v']! as String,
+      version: json['v'] as String?,
       name: ExecutableName._fromJson((json['e']! as Map).cast()),
       isSelf: json['s']! as bool,
+      isFromPath: json['fp'] as bool?,
       packageRoot: Directory(json['p']! as String),
     );
   }
 
   Map<String, Object?> _toJson() {
     return {
-      'v': version,
+      'v': _version,
       'e': name._toJson(),
       's': isSelf,
+      'fp': _isFromPath,
       'p': packageRoot.path,
     };
   }
@@ -228,6 +256,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
 
 ExecutableInstallation? _findLocalInstallation(
   ExecutableName executable,
+  bool findSelf,
   Directory start,
 ) {
   if (path.equals(start.path, start.parent.path)) {
@@ -256,7 +285,7 @@ ExecutableInstallation? _findLocalInstallation(
 
     final isSelf = name == executable.package;
 
-    if (isSelf ||
+    if ((findSelf && isSelf) ||
         (dependencies != null &&
             dependencies.containsKey(executable.package)) ||
         (devDependencies != null &&
@@ -269,7 +298,7 @@ ExecutableInstallation? _findLocalInstallation(
     }
   }
 
-  return _findLocalInstallation(executable, start.parent);
+  return _findLocalInstallation(executable, findSelf, start.parent);
 }
 
 /// The configuration for launching an executable.
@@ -278,6 +307,7 @@ class LaunchConfig {
   LaunchConfig({
     required this.name,
     required this.entrypoint,
+    this.launchFromSelf = true,
   });
 
   /// The name of the executable to launch.
@@ -285,6 +315,10 @@ class LaunchConfig {
 
   /// The entry point to start running the logic of the executable.
   final EntryPoint entrypoint;
+
+  /// When launching from within the source package, whether to launch the
+  /// executable from the source package.
+  final bool launchFromSelf;
 }
 
 const _launchContextEnvVar = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
@@ -296,18 +330,6 @@ LaunchContext? get _environmentLaunchContext {
     (jsonDecode(launchContextString) as Map).cast(),
   );
 }
-
-bool get _isRunningLocalInstallation =>
-    // The snapshot generate by pub for a locally installed executable lives
-    // somewhere within the `.dart_tool/pub` directory in the package.
-    // This heuristic detects an executable launched through
-    // `dart run <package>:<executable` as a local installation, as well as an
-    // executable that was globally installed from path, when executed within
-    // its source package.
-    path.isWithin(
-      path.join(Directory.current.path, '.dart_tool', 'pub'),
-      Platform.script.toFilePath(),
-    );
 
 /// Launches an executable with the given [args] and [config].
 ///
@@ -338,30 +360,13 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     return config.entrypoint(args, launchContext);
   }
 
-  if (_isRunningLocalInstallation) {
-    // We are running a local installation that was launched directly. We know
-    // that it was not launched by the global installation because the global
-    // installation would have provided the launch context through the
-    // environment.
-
-    launchContext = LaunchContext(
-      directory: Directory.current,
-      localInstallation: ExecutableInstallation(
-        name: config.name,
-        isSelf: false,
-        packageRoot: Directory.current,
-      ),
-    );
-
-    return config.entrypoint(args, launchContext);
-  }
-
   // We are running a global installation.
   final globalInstallation = _findGlobalInstallation(config.name);
 
   // Try to find a local installation.
   final localInstallation = _findLocalInstallation(
     config.name,
+    config.launchFromSelf,
     Directory.current,
   );
 
@@ -382,6 +387,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
 
   if (localInstallation != null &&
       (localInstallation.isSelf ||
+          localInstallation.isFromPath ||
           localInstallation.version != globalInstallation.version)) {
     // We found a local installation which is different from the global
     // installation so we launch the local installation.
