@@ -1,3 +1,7 @@
+## 0.2.1
+
+ - **FEAT**: improve support for path dependencies ([#7](https://github.com/blaugold/cli_launcher/issues/7)). ([4559db92](https://github.com/blaugold/cli_launcher/commit/4559db92d9e92a6b8c415ee51d204c889471a3e6))
+
 ## 0.2.0
 
 > Note: This release has breaking changes.
