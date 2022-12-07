@@ -206,7 +206,7 @@ class ExecutableInstallation {
 
   factory ExecutableInstallation._fromJson(Map<String, Object?> json) {
     return ExecutableInstallation(
-      version: json['v']! as String,
+      version: json['v'] as String?,
       name: ExecutableName._fromJson((json['e']! as Map).cast()),
       isSelf: json['s']! as bool,
       isFromPath: json['fp'] as bool?,
