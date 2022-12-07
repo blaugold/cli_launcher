@@ -26,7 +26,7 @@ void main() {
         output,
         matches(
           RegExp(
-            '.*Running v1 with local version 1.0.0 and global version null.*',
+            '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
           ),
         ),
       );
