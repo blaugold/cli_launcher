@@ -1,3 +1,9 @@
+## 0.3.0
+
+> Note: This release has breaking changes.
+
+ - **BREAKING** **FEAT**: pass launch context as argument ([#8](https://github.com/blaugold/cli_launcher/issues/8)). ([6a1e2baf](https://github.com/blaugold/cli_launcher/commit/6a1e2baf1c6bf3e8cd5df80a9d5d4b239b7e0b5a))
+
 ## 0.2.1
 
  - **FEAT**: improve support for path dependencies ([#7](https://github.com/blaugold/cli_launcher/issues/7)). ([4559db92](https://github.com/blaugold/cli_launcher/commit/4559db92d9e92a6b8c415ee51d204c889471a3e6))
