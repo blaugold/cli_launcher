@@ -321,11 +321,16 @@ class LaunchConfig {
   final bool launchFromSelf;
 }
 
-const _launchContextEnvVar = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
+const _launchContextMarker = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
 
-LaunchContext? get _environmentLaunchContext {
-  final launchContextString = Platform.environment[_launchContextEnvVar];
-  if (launchContextString == null) return null;
+LaunchContext? _extractLaunchContext(List<String> args) {
+  if (args.length < 2 || args.first != _launchContextMarker) {
+    return null;
+  }
+
+  args.removeAt(0); // Remove the marker.
+  final launchContextString = args.removeAt(0); // Remove the launch context.
+
   return LaunchContext._fromJson(
     (jsonDecode(launchContextString) as Map).cast(),
   );
@@ -347,7 +352,8 @@ LaunchContext? get _environmentLaunchContext {
 /// }
 /// ```
 FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
-  var launchContext = _environmentLaunchContext;
+  args = args.toList(); // Make a mutable copy of the arguments.
+  var launchContext = _extractLaunchContext(args);
   if (launchContext != null) {
     // We are running a local installation that was launched by global
     // installation. The global installation will have set the environment
@@ -393,15 +399,17 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     // installation so we launch the local installation.
     final process = await Process.start(
       'dart',
-      ['run', config.name.toString(), ...args],
+      [
+        'run',
+        config.name.toString(),
+        _launchContextMarker,
+        jsonEncode(launchContext._toJson()),
+        ...args
+      ],
       mode: ProcessStartMode.inheritStdio,
       workingDirectory: localInstallation.packageRoot.path,
       // Necessary so that `dart.bat` wrapper can be found on Windows.
       runInShell: Platform.isWindows,
-      environment: {
-        ...Platform.environment,
-        _launchContextEnvVar: jsonEncode(launchContext._toJson()),
-      },
     );
     exitCode = await process.exitCode;
     return;
