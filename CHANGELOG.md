@@ -1,3 +1,7 @@
+## 0.3.1
+
+ - **FEAT**: lower version constraint for `path`. ([daf9a9c9](https://github.com/blaugold/cli_launcher/commit/daf9a9c9e50adb8eeb194393a1ca85a4dbe7200b))
+
 ## 0.3.0
 
 > Note: This release has breaking changes.
