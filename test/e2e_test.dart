@@ -19,8 +19,9 @@ void main() {
 
   group('run in source package', () {
     test('with same local and global version', () {
-      final output =
-          runExampleCli(workingDirectory: 'fixture_packages/example_v1');
+      final output = runExampleCli(
+        workingDirectory: 'fixture_packages/example_v1',
+      );
 
       expect(
         output,
@@ -33,8 +34,9 @@ void main() {
     });
 
     test('with different local and global version', () {
-      final output =
-          runExampleCli(workingDirectory: 'fixture_packages/example_v2');
+      final output = runExampleCli(
+        workingDirectory: 'fixture_packages/example_v2',
+      );
 
       expect(
         output,
@@ -49,8 +51,9 @@ void main() {
 
   group('run in consumer package', () {
     test('with same local and global version', () {
-      final output =
-          runExampleCli(workingDirectory: './fixture_packages/consumer_v1');
+      final output = runExampleCli(
+        workingDirectory: './fixture_packages/consumer_v1',
+      );
 
       expect(
         output,
@@ -63,8 +66,9 @@ void main() {
     });
 
     test('with different local and global version', () {
-      final output =
-          runExampleCli(workingDirectory: './fixture_packages/consumer_v2');
+      final output = runExampleCli(
+        workingDirectory: './fixture_packages/consumer_v2',
+      );
 
       expect(
         output,

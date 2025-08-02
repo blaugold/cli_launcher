@@ -15,3 +15,5 @@ dependencies:
 dev_dependencies:
   lints: ^2.0.0
   test: ^1.16.0
+  melos: ^6.3.3
+  daco: ^0.4.0
