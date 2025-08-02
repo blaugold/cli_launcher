@@ -104,20 +104,10 @@ void main() {
       );
 
       // Verify that `dart pub get` was run with `--verbose`.
-      expect(
-        output,
-        matches(
-          'MSG : Resolving dependencies...',
-        ),
-      );
+      expect(output, matches('MSG : Resolving dependencies...'));
 
       // Verify that `dart run` was run with `--enable-asserts`.
-      expect(
-        output,
-        matches(
-          'Assertions are enabled.',
-        ),
-      );
+      expect(output, matches('Assertions are enabled.'));
     });
   });
 }
