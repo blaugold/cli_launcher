@@ -9,10 +9,8 @@ import 'package:yaml/yaml.dart';
 ///
 /// It is passed the arguments passed to the executable and a [LaunchContext]
 /// that provides information about how the executable was launched.
-typedef EntryPoint = FutureOr<void> Function(
-  List<String> args,
-  LaunchContext context,
-);
+typedef EntryPoint =
+    FutureOr<void> Function(List<String> args, LaunchContext context);
 
 /// A context that provides information about how an executable was launched.
 ///
@@ -68,10 +66,8 @@ class LaunchContext {
 /// The package qualified name of an executable.
 class ExecutableName {
   /// Creates a new executable name.
-  ExecutableName(
-    this.executable, {
-    String? package,
-  }) : package = package ?? executable;
+  ExecutableName(this.executable, {String? package})
+    : package = package ?? executable;
 
   /// The name of the package that contains the executable.
   final String package;
@@ -83,17 +79,11 @@ class ExecutableName {
   String toString() => '$package:$executable';
 
   Map<String, Object?> _toJson() {
-    return {
-      'p': package,
-      'e': executable,
-    };
+    return {'p': package, 'e': executable};
   }
 
   factory ExecutableName._fromJson(Map<String, Object?> json) {
-    return ExecutableName(
-      json['e']! as String,
-      package: json['p']! as String,
-    );
+    return ExecutableName(json['e']! as String, package: json['p']! as String);
   }
 }
 
@@ -106,8 +96,8 @@ class ExecutableInstallation {
     required this.isSelf,
     bool? isFromPath,
     required this.packageRoot,
-  })  : _version = version,
-        _isFromPath = isFromPath;
+  }) : _version = version,
+       _isFromPath = isFromPath;
 
   /// The name of the executable.
   final ExecutableName name;
@@ -140,8 +130,10 @@ class ExecutableInstallation {
   YamlMap? _loadPubspecLockEntry() {
     final pubspecLockFile = File(path.join(packageRoot.path, 'pubspec.lock'));
     final pubspecLockString = pubspecLockFile.readAsStringSync();
-    final pubspecLockYaml =
-        loadYamlDocument(pubspecLockString, sourceUrl: pubspecLockFile.uri);
+    final pubspecLockYaml = loadYamlDocument(
+      pubspecLockString,
+      sourceUrl: pubspecLockFile.uri,
+    );
     final contents = pubspecLockYaml.contents as YamlMap;
     final packages = contents['packages']! as YamlMap;
     return packages[name.package] as YamlMap?;
@@ -159,8 +151,10 @@ class ExecutableInstallation {
 
     final pubspecFile = File(path.join(packageRoot.path, 'pubspec.yaml'));
     final pubspecString = pubspecFile.readAsStringSync();
-    final pubspecYaml =
-        loadYamlDocument(pubspecString, sourceUrl: pubspecFile.uri);
+    final pubspecYaml = loadYamlDocument(
+      pubspecString,
+      sourceUrl: pubspecFile.uri,
+    );
     final pubspecContents = pubspecYaml.contents as YamlMap;
     return pubspecContents['version']! as String;
   }
@@ -183,18 +177,15 @@ class ExecutableInstallation {
       return false;
     }
 
-    return pubspecLockFile
-        .lastModifiedSync()
-        .isAfter(pubspecFile.lastModifiedSync());
+    return pubspecLockFile.lastModifiedSync().isAfter(
+      pubspecFile.lastModifiedSync(),
+    );
   }
 
   Future<bool> _updateDependencies() async {
     final result = await Process.start(
       'dart',
-      [
-        'pub',
-        'get',
-      ],
+      ['pub', 'get'],
       mode: ProcessStartMode.inheritStdio,
       workingDirectory: packageRoot.path,
       // Necessary so that `dart.bat` wrapper can be found on Windows.
@@ -234,8 +225,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // is located in the `bin` directory in a generated package.
     // This package is located in `<pub-cache>/global_packages/<package>`.
     packageRoot = File(scriptPath).parent.parent;
-  } else if (scriptPath
-      .contains(path.join('.dart_tool', 'pub', 'bin', executable.package))) {
+  } else if (scriptPath.contains(
+    path.join('.dart_tool', 'pub', 'bin', executable.package),
+  )) {
     // The snapshot of an executable that is globally installed from path
     // is located in the `.dart_tool/pub/bin/<package>` directory in
     // the specified package.
@@ -271,8 +263,10 @@ ExecutableInstallation? _findLocalInstallation(
     YamlMap? devDependencies;
 
     try {
-      final pubspecYaml =
-          loadYamlDocument(pubspecString, sourceUrl: pubspecFile.uri);
+      final pubspecYaml = loadYamlDocument(
+        pubspecString,
+        sourceUrl: pubspecFile.uri,
+      );
       final pubspec = pubspecYaml.contents as YamlMap;
       name = pubspec['name'] as String?;
       dependencies = pubspec['dependencies'] as YamlMap?;
@@ -404,7 +398,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
         config.name.toString(),
         _launchContextMarker,
         jsonEncode(launchContext._toJson()),
-        ...args
+        ...args,
       ],
       mode: ProcessStartMode.inheritStdio,
       workingDirectory: localInstallation.packageRoot.path,
