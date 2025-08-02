@@ -31,5 +31,5 @@ scripts:
 
   test:
     exec: dart test -j 1
-    select-package:
-      dir-exists: test
+    selectPackage:
+      dirExists: test
