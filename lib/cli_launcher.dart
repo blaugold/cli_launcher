@@ -182,10 +182,10 @@ class ExecutableInstallation {
     );
   }
 
-  Future<bool> _updateDependencies() async {
+  Future<bool> _updateDependencies([List<String>? pubGetArgs]) async {
     final result = await Process.start(
       'dart',
-      ['pub', 'get'],
+      ['pub', 'get', if (pubGetArgs != null) ...pubGetArgs],
       mode: ProcessStartMode.inheritStdio,
       workingDirectory: packageRoot.path,
       // Necessary so that `dart.bat` wrapper can be found on Windows.
@@ -302,6 +302,7 @@ class LaunchConfig {
     required this.name,
     required this.entrypoint,
     this.launchFromSelf = true,
+    this.resolveLocalLaunchConfig,
   });
 
   /// The name of the executable to launch.
@@ -313,6 +314,31 @@ class LaunchConfig {
   /// When launching from within the source package, whether to launch the
   /// executable from the source package.
   final bool launchFromSelf;
+
+  /// Resolver that is called to resolve a [LocalLaunchConfig] in case a local
+  /// installation of the executable launched.
+  final ResolveLocalLaunchConfig? resolveLocalLaunchConfig;
+}
+
+/// A function that resolves a [LocalLaunchConfig] for launching a local
+/// installation of an executable.
+///
+/// It is called with the [LaunchContext] in which the local installation will
+/// be launched.
+typedef ResolveLocalLaunchConfig =
+    Future<LocalLaunchConfig> Function(LaunchContext context);
+
+/// Configuration options for launching a local installation of an executable.
+class LocalLaunchConfig {
+  /// Creates a new local launch configuration.
+  LocalLaunchConfig({this.pubGetArgs, this.dartRunArgs});
+
+  /// Additional arguments to pass to `dart pub get` when dependencies are out
+  /// of date.
+  final List<String>? pubGetArgs;
+
+  /// Additional arguments to pass to `dart run` when launching the executable.
+  final List<String>? dartRunArgs;
 }
 
 const _launchContextMarker = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
@@ -376,10 +402,16 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     localInstallation: localInstallation,
   );
 
+  // Resolve local launch configuration if provided.
+  LocalLaunchConfig? localConfig;
+  if (config.resolveLocalLaunchConfig != null) {
+    localConfig = await config.resolveLocalLaunchConfig!(launchContext);
+  }
+
   if (localInstallation != null && !localInstallation._pubspecLockIsUpToDate) {
     // Ensure that dependencies are up to date so that we can resolve the
     // version of the local installation.
-    if (!await localInstallation._updateDependencies()) {
+    if (!await localInstallation._updateDependencies(localConfig?.pubGetArgs)) {
       // Failed to update dependencies so we abort.
       return;
     }
@@ -395,6 +427,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
       'dart',
       [
         'run',
+        ...?localConfig?.dartRunArgs,
         config.name.toString(),
         _launchContextMarker,
         jsonEncode(launchContext._toJson()),

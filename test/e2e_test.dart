@@ -95,13 +95,46 @@ void main() {
         ),
       );
     });
+
+    test('with local launch config', () {
+      final output = runExampleCli(
+        workingDirectory: './fixture_packages/consumer_v1',
+        arguments: ['--local-launch-config'],
+        forcePubGet: true,
+      );
+
+      // Verify that `dart pub get` was run with `--verbose`.
+      expect(
+        output,
+        matches(
+          'MSG : Resolving dependencies...',
+        ),
+      );
+
+      // Verify that `dart run` was run with `--enable-asserts`.
+      expect(
+        output,
+        matches(
+          'Assertions are enabled.',
+        ),
+      );
+    });
   });
 }
 
 String runExampleCli({
   List<String> arguments = const [],
   required String workingDirectory,
+  bool forcePubGet = false,
 }) {
+  if (forcePubGet) {
+    // Remove the pubspec.lock file to ensure a fresh run.
+    final lockFile = File('$workingDirectory/pubspec.lock');
+    if (lockFile.existsSync()) {
+      lockFile.deleteSync();
+    }
+  }
+
   final result = Process.runSync(
     'example',
     arguments,
