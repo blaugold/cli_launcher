@@ -11,7 +11,20 @@ void main(List<String> args) {
           'local version ${context.localInstallation?.version} and '
           'global version ${context.globalInstallation?.version}.',
         );
+
+        assert(() {
+          print('Assertions are enabled.');
+          return true;
+        }());
       },
+      resolveLocalLaunchConfig: args.contains('--local-launch-config')
+          ? (context) async {
+              return LocalLaunchConfig(
+                pubGetArgs: ['--verbose'],
+                dartRunArgs: ['--enable-asserts'],
+              );
+            }
+          : null,
     ),
   );
 }
