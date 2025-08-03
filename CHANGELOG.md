@@ -15,6 +15,31 @@ Packages with breaking changes:
 
 Packages with other changes:
 
+ - [`cli_launcher` - `v0.3.2+1`](#cli_launcher---v0321)
+
+---
+
+#### `cli_launcher` - `v0.3.2+1`
+
+ - **DOCS**: add `example/README.md`. ([f8c6457e](https://github.com/blaugold/cli_launcher/commit/f8c6457e2641f71fd80920e999be6f71f38de1de))
+
+## 0.3.2+1
+
+ - **DOCS**: add `example/README.md`. ([f8c6457e](https://github.com/blaugold/cli_launcher/commit/f8c6457e2641f71fd80920e999be6f71f38de1de))
+
+
+## 2025-08-03
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
  - [`cli_launcher` - `v0.3.2`](#cli_launcher---v032)
 
 ---
