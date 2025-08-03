@@ -1,3 +1,32 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
+
+## 2025-08-03
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
+ - [`cli_launcher` - `v0.3.2`](#cli_launcher---v032)
+
+---
+
+#### `cli_launcher` - `v0.3.2`
+
+ - **FEAT**: add LocalLaunchConfig support for customizable pub get and dart run args ([#12](https://github.com/blaugold/cli_launcher/issues/12)). ([9c3f21d6](https://github.com/blaugold/cli_launcher/commit/9c3f21d6723cb7ca77ba8218cf9f73e8109d75b0))
+
+## 0.3.2
+
+ - **FEAT**: add LocalLaunchConfig support for customizable pub get and dart run args ([#12](https://github.com/blaugold/cli_launcher/issues/12)). ([9c3f21d6](https://github.com/blaugold/cli_launcher/commit/9c3f21d6723cb7ca77ba8218cf9f73e8109d75b0))
+
 ## 0.3.1
 
  - **FEAT**: lower version constraint for `path`. ([daf9a9c9](https://github.com/blaugold/cli_launcher/commit/daf9a9c9e50adb8eeb194393a1ca85a4dbe7200b))
