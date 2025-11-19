@@ -17,11 +17,18 @@ void main(List<String> args) {
           return true;
         }());
       },
-      resolveLocalLaunchConfig: args.contains('--local-launch-config')
+      resolveLocalLaunchConfig:
+          args.contains('--local-launch-config') ||
+              args.contains('--skip-pub-get')
           ? (context) async {
               return LocalLaunchConfig(
-                pubGetArgs: ['--verbose'],
-                dartRunArgs: ['--enable-asserts'],
+                pubGetArgs: args.contains('--local-launch-config')
+                    ? ['--verbose']
+                    : null,
+                dartRunArgs: args.contains('--local-launch-config')
+                    ? ['--enable-asserts']
+                    : null,
+                skipPubGet: args.contains('--skip-pub-get'),
               );
             }
           : null,

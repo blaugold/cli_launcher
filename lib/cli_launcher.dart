@@ -331,7 +331,7 @@ typedef ResolveLocalLaunchConfig =
 /// Configuration options for launching a local installation of an executable.
 class LocalLaunchConfig {
   /// Creates a new local launch configuration.
-  LocalLaunchConfig({this.pubGetArgs, this.dartRunArgs});
+  LocalLaunchConfig({this.pubGetArgs, this.dartRunArgs, this.skipPubGet});
 
   /// Additional arguments to pass to `dart pub get` when dependencies are out
   /// of date.
@@ -339,6 +339,13 @@ class LocalLaunchConfig {
 
   /// Additional arguments to pass to `dart run` when launching the executable.
   final List<String>? dartRunArgs;
+
+  /// Whether to skip running `dart pub get` even when dependencies are out of
+  /// date.
+  ///
+  /// When `true`, `dart pub get` will not be executed even if `pubspec.lock`
+  /// is out of date. This is useful when dependencies are managed externally.
+  final bool? skipPubGet;
 }
 
 const _launchContextMarker = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
@@ -408,7 +415,9 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     localConfig = await config.resolveLocalLaunchConfig!(launchContext);
   }
 
-  if (localInstallation != null && !localInstallation._pubspecLockIsUpToDate) {
+  if (localInstallation != null &&
+      !localInstallation._pubspecLockIsUpToDate &&
+      localConfig?.skipPubGet != true) {
     // Ensure that dependencies are up to date so that we can resolve the
     // version of the local installation.
     if (!await localInstallation._updateDependencies(localConfig?.pubGetArgs)) {

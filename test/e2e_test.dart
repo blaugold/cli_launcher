@@ -109,6 +109,41 @@ void main() {
       // Verify that `dart run` was run with `--enable-asserts`.
       expect(output, matches('Assertions are enabled.'));
     });
+
+    test('with skipPubGet skips pub get', () {
+      final output = runExampleCli(
+        workingDirectory: './fixture_packages/consumer_v1',
+        arguments: ['--skip-pub-get'],
+        forcePubGet: true,
+      );
+
+      // Verify that `dart pub get` was NOT run (no "Resolving dependencies" message).
+      expect(output, isNot(matches('Resolving dependencies...')));
+
+      // Verify that the executable still runs successfully.
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
+          ),
+        ),
+      );
+    });
+
+    test('with skipPubGet false still runs pub get', () {
+      final output = runExampleCli(
+        workingDirectory: './fixture_packages/consumer_v1',
+        arguments: ['--local-launch-config'],
+        forcePubGet: true,
+      );
+
+      // Verify that `dart pub get` was run with `--verbose`.
+      expect(output, matches('MSG : Resolving dependencies...'));
+
+      // Verify that `dart run` was run with `--enable-asserts`.
+      expect(output, matches('Assertions are enabled.'));
+    });
   });
 }
 
