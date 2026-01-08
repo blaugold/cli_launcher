@@ -109,6 +109,67 @@ void main() {
       // Verify that `dart run` was run with `--enable-asserts`.
       expect(output, matches('Assertions are enabled.'));
     });
+
+    test('with equal pubspec timestamps does not run pub get', () {
+      const workingDirectory = './fixture_packages/consumer_v1';
+      final pubspecFile = File('$workingDirectory/pubspec.yaml');
+      final lockFile = File('$workingDirectory/pubspec.lock');
+      final timestamp = DateTime.now();
+      pubspecFile.setLastModifiedSync(timestamp);
+      lockFile.setLastModifiedSync(timestamp);
+
+      final output = runExampleCli(workingDirectory: workingDirectory);
+
+      expect(output, isNot(contains('Resolving dependencies...')));
+    });
+
+    test('without pubspec.lock runs pub get', () {
+      const workingDirectory = './fixture_packages/consumer_v1';
+      final pubspecFile = File('$workingDirectory/pubspec.yaml');
+      final lockFile = File('$workingDirectory/pubspec.lock');
+      if (lockFile.existsSync()) {
+        lockFile.deleteSync();
+      }
+      pubspecFile.setLastModifiedSync(DateTime.now());
+
+      final output = runExampleCli(
+        workingDirectory: workingDirectory,
+        forcePubGet: true,
+      );
+
+      expect(output, contains('Resolving dependencies...'));
+    });
+
+    test('with older pubspec.lock runs pub get', () {
+      const workingDirectory = './fixture_packages/consumer_v1';
+      final pubspecFile = File('$workingDirectory/pubspec.yaml');
+      final lockFile = File('$workingDirectory/pubspec.lock');
+      final pubspecTimestamp = DateTime.now();
+      final lockTimestamp = pubspecTimestamp.subtract(const Duration(hours: 1));
+      pubspecFile.setLastModifiedSync(pubspecTimestamp);
+      lockFile.setLastModifiedSync(lockTimestamp);
+
+      final output = runExampleCli(
+        workingDirectory: workingDirectory,
+        forcePubGet: true,
+      );
+
+      expect(output, contains('Resolving dependencies...'));
+    });
+
+    test('with newer pubspec.lock does not run pub get', () {
+      const workingDirectory = './fixture_packages/consumer_v1';
+      final pubspecFile = File('$workingDirectory/pubspec.yaml');
+      final lockFile = File('$workingDirectory/pubspec.lock');
+      final lockTimestamp = DateTime.now();
+      final pubspecTimestamp = lockTimestamp.subtract(const Duration(hours: 1));
+      pubspecFile.setLastModifiedSync(pubspecTimestamp);
+      lockFile.setLastModifiedSync(lockTimestamp);
+
+      final output = runExampleCli(workingDirectory: workingDirectory);
+
+      expect(output, isNot(contains('Resolving dependencies...')));
+    });
   });
 }
 
