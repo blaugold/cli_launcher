@@ -129,6 +129,9 @@ class ExecutableInstallation {
 
   YamlMap? _loadPubspecLockEntry() {
     final pubspecLockFile = File(path.join(packageRoot.path, 'pubspec.lock'));
+    if (!pubspecLockFile.existsSync()) {
+      return null;
+    }
     final pubspecLockString = pubspecLockFile.readAsStringSync();
     final pubspecLockYaml = loadYamlDocument(
       pubspecLockString,
@@ -228,10 +231,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   } else if (scriptPath.contains(
     path.join('.dart_tool', 'pub', 'bin', executable.package),
   )) {
-    // The snapshot of an executable that is globally installed from path
-    // is located in the `.dart_tool/pub/bin/<package>` directory in
-    // the specified package.
-    packageRoot = File(scriptPath).parent.parent.parent.parent.parent;
+    packageRoot = _findPathActivatedPackageRoot(scriptPath, executable);
   } else {
     throw StateError(
       'Could not find global installation of $executable. '
@@ -244,6 +244,47 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     isSelf: false,
     packageRoot: packageRoot,
   );
+}
+
+Directory _findPathActivatedPackageRoot(
+  String scriptPath,
+  ExecutableName executable,
+) {
+  // The snapshot of an executable that is globally installed from path
+  // is located in the `.dart_tool/pub/bin/<package>` directory in
+  // the specified package.
+  final packageRoot = File(scriptPath).parent.parent.parent.parent.parent;
+
+  final pubspecFile = File(path.join(packageRoot.path, 'pubspec.yaml'));
+  final pubspecString = pubspecFile.readAsStringSync();
+  final pubspecYaml = loadYamlDocument(
+    pubspecString,
+    sourceUrl: pubspecFile.uri,
+  );
+  final pubspec = pubspecYaml.contents as YamlMap;
+
+  final workspace = pubspec['workspace'] as YamlList?;
+  if (workspace == null) {
+    return packageRoot;
+  }
+
+  for (final entry in workspace) {
+    final packagePath = path.join(packageRoot.path, entry as String);
+    final subPubspecFile = File(path.join(packagePath, 'pubspec.yaml'));
+    if (subPubspecFile.existsSync()) {
+      final subPubspecString = subPubspecFile.readAsStringSync();
+      final subPubspecYaml = loadYamlDocument(
+        subPubspecString,
+        sourceUrl: subPubspecFile.uri,
+      );
+      final subPubspec = subPubspecYaml.contents as YamlMap;
+      if (subPubspec['name'] == executable.package) {
+        return Directory(packagePath);
+      }
+    }
+  }
+
+  return packageRoot;
 }
 
 ExecutableInstallation? _findLocalInstallation(

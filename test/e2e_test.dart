@@ -17,6 +17,22 @@ void main() {
     );
   });
 
+  test('run global workspace version', () {
+    final output = runExampleCli(
+      workingDirectory: '.',
+      executable: 'example_workspace',
+    );
+
+    expect(
+      output,
+      matches(
+        RegExp(
+          '.*Running workspace example with local version null and global version 1.0.0.*',
+        ),
+      ),
+    );
+  });
+
   group('run in source package', () {
     test('with same local and global version', () {
       final output = runExampleCli(
@@ -110,12 +126,14 @@ void main() {
       expect(output, matches('Assertions are enabled.'));
     });
   });
+
 }
 
 String runExampleCli({
   List<String> arguments = const [],
   required String workingDirectory,
   bool forcePubGet = false,
+  String executable = 'example',
 }) {
   if (forcePubGet) {
     // Remove the pubspec.lock file to ensure a fresh run.
@@ -126,7 +144,7 @@ String runExampleCli({
   }
 
   final result = Process.runSync(
-    'example',
+    executable,
     arguments,
     runInShell: true,
     workingDirectory: workingDirectory,
@@ -136,7 +154,7 @@ String runExampleCli({
 
   if (result.exitCode != 0) {
     throw Exception(
-      'example CLI failed with exit code ${result.exitCode}:'
+      '$executable CLI failed with exit code ${result.exitCode}:'
       '\n${result.stdout}\n${result.stderr}',
     );
   }
