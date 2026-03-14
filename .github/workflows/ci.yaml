@@ -27,6 +27,7 @@ jobs:
       - run: melos format:check
       - run: melos analyze
       - run: melos run activate_example_cli
+      - run: melos run activate_workspace_example_cli
       - run: melos test
       - run: melos run install_example_cli
       - run: dart test test/e2e_dart_install_test.dart -j 1
