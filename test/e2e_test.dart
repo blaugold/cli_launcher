@@ -179,12 +179,15 @@ void _setUpToDateTimestamps(
   // Path dependency of consumer_v1.
   final pathDepPubspecFile = File('./fixture_packages/example_v1/pubspec.yaml');
 
-  // Set package_config.json to be the newest to prevent `dart run` from
-  // triggering its own pub get.
+  // Set package_config.json to be strictly newer than all other files to
+  // prevent `dart run` from triggering its own pub get. On Windows, equal
+  // timestamps can cause `dart run` to consider dependencies stale.
   final newestTimestamp = lockTimestamp.isAfter(pubspecTimestamp)
       ? lockTimestamp
       : pubspecTimestamp;
-  packageConfigFile.setLastModifiedSync(newestTimestamp);
+  packageConfigFile.setLastModifiedSync(
+    newestTimestamp.add(const Duration(seconds: 2)),
+  );
   pathDepPubspecFile.setLastModifiedSync(pubspecTimestamp);
   pubspecFile.setLastModifiedSync(pubspecTimestamp);
   lockFile.setLastModifiedSync(lockTimestamp);
