@@ -21,6 +21,9 @@ scripts:
   activate_workspace_example_cli:
     run: cd fixture_packages/example_workspace && dart pub global activate --source path packages/example_workspace
 
+  install_example_cli:
+    run: dart install fixture_packages/example_v1
+
   format:
     exec: daco format .
 
