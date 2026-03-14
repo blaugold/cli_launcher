@@ -126,10 +126,6 @@ void main() {
     test('without pubspec.lock runs pub get', () {
       const workingDirectory = './fixture_packages/consumer_v1';
       final pubspecFile = File('$workingDirectory/pubspec.yaml');
-      final lockFile = File('$workingDirectory/pubspec.lock');
-      if (lockFile.existsSync()) {
-        lockFile.deleteSync();
-      }
       pubspecFile.setLastModifiedSync(DateTime.now());
 
       final output = runExampleCli(
@@ -149,10 +145,7 @@ void main() {
       pubspecFile.setLastModifiedSync(pubspecTimestamp);
       lockFile.setLastModifiedSync(lockTimestamp);
 
-      final output = runExampleCli(
-        workingDirectory: workingDirectory,
-        forcePubGet: true,
-      );
+      final output = runExampleCli(workingDirectory: workingDirectory);
 
       expect(output, contains('Resolving dependencies...'));
     });
