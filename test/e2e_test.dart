@@ -177,8 +177,8 @@ void main() {
 
 }
 
-/// Sets timestamps on all files that are checked to determine whether `pub
-/// get` needs to be run.
+/// Sets timestamps on all files that are checked to determine whether `pub get`
+/// needs to be run.
 ///
 /// This includes the pubspec files in the consumer package as well as the
 /// `.dart_tool/package_config.json` and the path dependency's `pubspec.yaml`,
