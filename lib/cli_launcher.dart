@@ -177,7 +177,7 @@ class ExecutableInstallation {
       return false;
     }
 
-    return pubspecLockFile.lastModifiedSync().isAfter(
+    return !pubspecLockFile.lastModifiedSync().isBefore(
       pubspecFile.lastModifiedSync(),
     );
   }
