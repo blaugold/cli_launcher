@@ -164,8 +164,9 @@ void main() {
 /// needs to be run.
 ///
 /// This sets up timestamps so that:
-/// 1. cli_launcher's `_pubspecLockIsUpToDate` considers the lock file up to date
-///    (lock >= pubspec for the consumer package).
+///
+/// 1. cli_launcher's `_pubspecLockIsUpToDate` considers the lock file up to
+///    date (lock >= pubspec for the consumer package).
 /// 2. `dart run`'s auto-resolution does not trigger. `dart run` checks
 ///    `package_config.json` against all pubspec/lock files, including those of
 ///    transitive path dependencies.
