@@ -174,7 +174,6 @@ void main() {
       expect(output, isNot(contains('Resolving dependencies...')));
     });
   });
-
 }
 
 /// Sets timestamps on all files that are checked to determine whether `pub get`

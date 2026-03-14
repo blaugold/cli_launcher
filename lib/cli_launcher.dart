@@ -96,8 +96,10 @@ class ExecutableInstallation {
     required this.isSelf,
     bool? isFromPath,
     required this.packageRoot,
+    Directory? lockFileRoot,
   }) : _version = version,
-       _isFromPath = isFromPath;
+       _isFromPath = isFromPath,
+       lockFileRoot = lockFileRoot ?? packageRoot;
 
   /// The name of the executable.
   final ExecutableName name;
@@ -119,6 +121,13 @@ class ExecutableInstallation {
   /// The root directory of the package in which the executable is installed.
   final Directory packageRoot;
 
+  /// The root directory containing the `pubspec.lock` file.
+  ///
+  /// For workspace member packages this is the workspace root, since
+  /// `pubspec.lock` is only located there. For non-workspace packages this is
+  /// the same as [packageRoot].
+  final Directory lockFileRoot;
+
   /// The loaded [version] value, if any.
   String? _version;
 
@@ -128,10 +137,7 @@ class ExecutableInstallation {
   late final _pubspecLockEntry = _loadPubspecLockEntry();
 
   YamlMap? _loadPubspecLockEntry() {
-    final pubspecLockFile = File(path.join(packageRoot.path, 'pubspec.lock'));
-    if (!pubspecLockFile.existsSync()) {
-      return null;
-    }
+    final pubspecLockFile = File(path.join(lockFileRoot.path, 'pubspec.lock'));
     final pubspecLockString = pubspecLockFile.readAsStringSync();
     final pubspecLockYaml = loadYamlDocument(
       pubspecLockString,
@@ -175,7 +181,7 @@ class ExecutableInstallation {
 
   bool get _pubspecLockIsUpToDate {
     final pubspecFile = File(path.join(packageRoot.path, 'pubspec.yaml'));
-    final pubspecLockFile = File(path.join(packageRoot.path, 'pubspec.lock'));
+    final pubspecLockFile = File(path.join(lockFileRoot.path, 'pubspec.lock'));
     if (!pubspecLockFile.existsSync()) {
       return false;
     }
@@ -199,12 +205,16 @@ class ExecutableInstallation {
   }
 
   factory ExecutableInstallation._fromJson(Map<String, Object?> json) {
+    final packageRoot = Directory(json['p']! as String);
     return ExecutableInstallation(
       version: json['v'] as String?,
       name: ExecutableName._fromJson((json['e']! as Map).cast()),
       isSelf: json['s']! as bool,
       isFromPath: json['fp'] as bool?,
-      packageRoot: Directory(json['p']! as String),
+      packageRoot: packageRoot,
+      lockFileRoot: json['lr'] != null
+          ? Directory(json['lr']! as String)
+          : null,
     );
   }
 
@@ -215,12 +225,14 @@ class ExecutableInstallation {
       's': isSelf,
       'fp': _isFromPath,
       'p': packageRoot.path,
+      if (lockFileRoot.path != packageRoot.path) 'lr': lockFileRoot.path,
     };
   }
 }
 
 ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   final Directory packageRoot;
+  Directory? lockFileRootOverride;
 
   final scriptPath = Platform.script.toFilePath();
   if (scriptPath.contains(path.join('global_packages', executable.package))) {
@@ -231,7 +243,12 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   } else if (scriptPath.contains(
     path.join('.dart_tool', 'pub', 'bin', executable.package),
   )) {
-    packageRoot = _findPathActivatedPackageRoot(scriptPath, executable);
+    final (:root, :lockFileRoot) = _findPathActivatedPackageRoot(
+      scriptPath,
+      executable,
+    );
+    packageRoot = root;
+    lockFileRootOverride = lockFileRoot;
   } else if (Platform.resolvedExecutable.contains(
     path.join('app-bundles', executable.package),
   )) {
@@ -253,10 +270,11 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     name: executable,
     isSelf: false,
     packageRoot: packageRoot,
+    lockFileRoot: lockFileRootOverride,
   );
 }
 
-Directory _findPathActivatedPackageRoot(
+({Directory root, Directory? lockFileRoot}) _findPathActivatedPackageRoot(
   String scriptPath,
   ExecutableName executable,
 ) {
@@ -275,7 +293,7 @@ Directory _findPathActivatedPackageRoot(
 
   final workspace = pubspec['workspace'] as YamlList?;
   if (workspace == null) {
-    return packageRoot;
+    return (root: packageRoot, lockFileRoot: null);
   }
 
   for (final entry in workspace) {
@@ -289,12 +307,12 @@ Directory _findPathActivatedPackageRoot(
       );
       final subPubspec = subPubspecYaml.contents as YamlMap;
       if (subPubspec['name'] == executable.package) {
-        return Directory(packagePath);
+        return (root: Directory(packagePath), lockFileRoot: packageRoot);
       }
     }
   }
 
-  return packageRoot;
+  return (root: packageRoot, lockFileRoot: null);
 }
 
 ExecutableInstallation? _findLocalInstallation(
