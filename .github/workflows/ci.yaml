@@ -17,7 +17,7 @@ jobs:
         dart: [stable, dev]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: ${{ matrix.dart }}
@@ -28,3 +28,5 @@ jobs:
       - run: melos analyze
       - run: melos run activate_example_cli
       - run: melos test
+      - run: melos run install_example_cli
+      - run: dart test test/e2e_dart_install_test.dart -j 1

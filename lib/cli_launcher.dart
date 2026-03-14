@@ -232,6 +232,17 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // is located in the `.dart_tool/pub/bin/<package>` directory in
     // the specified package.
     packageRoot = File(scriptPath).parent.parent.parent.parent.parent;
+  } else if (Platform.resolvedExecutable.contains(
+    path.join('app-bundles', executable.package),
+  )) {
+    // The binary of an executable installed via `dart install` is located
+    // in the `bundle/bin` directory within a versioned package.
+    // Structure: <install-dir>/app-bundles/<package>/<source>/<version>/bundle/bin/<executable>
+    // Platform.resolvedExecutable is used instead of Platform.script because
+    // for AOT-compiled binaries, Platform.script may not contain the actual
+    // binary path (e.g. when invoked via a shell).
+    packageRoot =
+        File(Platform.resolvedExecutable).parent.parent.parent;
   } else {
     throw StateError(
       'Could not find global installation of $executable. '

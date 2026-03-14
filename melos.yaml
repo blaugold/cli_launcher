@@ -18,6 +18,9 @@ scripts:
   activate_example_cli:
     run: cd fixture_packages/example_v1 && dart pub global activate --source path .
 
+  install_example_cli:
+    run: dart install fixture_packages/example_v1
+
   format:
     exec: daco format .
 
