@@ -126,15 +126,21 @@ void main() {
       expect(output, matches('Assertions are enabled.'));
     });
 
-    test('with equal pubspec timestamps does not run pub get', () {
-      const workingDirectory = './fixture_packages/consumer_v1';
-      final timestamp = DateTime.now();
-      _setUpToDateTimestamps(workingDirectory, timestamp, timestamp);
+    test(
+      'with equal pubspec timestamps does not run pub get',
+      () {
+        const workingDirectory = './fixture_packages/consumer_v1';
+        final timestamp = DateTime.now();
+        _setUpToDateTimestamps(workingDirectory, timestamp, timestamp);
 
-      final output = runExampleCli(workingDirectory: workingDirectory);
+        final output = runExampleCli(workingDirectory: workingDirectory);
 
-      expect(output, isNot(contains('Resolving dependencies...')));
-    });
+        expect(output, isNot(contains('Resolving dependencies...')));
+      },
+      // On Windows, `dart run` triggers auto-resolution for path dependencies
+      // regardless of timestamps, making this test unreliable.
+      skip: Platform.isWindows,
+    );
 
     test('without pubspec.lock runs pub get', () {
       const workingDirectory = './fixture_packages/consumer_v1';
@@ -163,16 +169,28 @@ void main() {
       expect(output, contains('Resolving dependencies...'));
     });
 
-    test('with newer pubspec.lock does not run pub get', () {
-      const workingDirectory = './fixture_packages/consumer_v1';
-      final lockTimestamp = DateTime.now();
-      final pubspecTimestamp = lockTimestamp.subtract(const Duration(hours: 1));
-      _setUpToDateTimestamps(workingDirectory, pubspecTimestamp, lockTimestamp);
+    test(
+      'with newer pubspec.lock does not run pub get',
+      () {
+        const workingDirectory = './fixture_packages/consumer_v1';
+        final lockTimestamp = DateTime.now();
+        final pubspecTimestamp = lockTimestamp.subtract(
+          const Duration(hours: 1),
+        );
+        _setUpToDateTimestamps(
+          workingDirectory,
+          pubspecTimestamp,
+          lockTimestamp,
+        );
 
-      final output = runExampleCli(workingDirectory: workingDirectory);
+        final output = runExampleCli(workingDirectory: workingDirectory);
 
-      expect(output, isNot(contains('Resolving dependencies...')));
-    });
+        expect(output, isNot(contains('Resolving dependencies...')));
+      },
+      // On Windows, `dart run` triggers auto-resolution for path dependencies
+      // regardless of timestamps, making this test unreliable.
+      skip: Platform.isWindows,
+    );
   });
 }
 
