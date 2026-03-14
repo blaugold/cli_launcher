@@ -241,8 +241,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // Platform.resolvedExecutable is used instead of Platform.script because
     // for AOT-compiled binaries, Platform.script may not contain the actual
     // binary path (e.g. when invoked via a shell).
-    packageRoot =
-        File(Platform.resolvedExecutable).parent.parent.parent;
+    packageRoot = File(Platform.resolvedExecutable).parent.parent.parent;
   } else {
     throw StateError(
       'Could not find global installation of $executable. '
