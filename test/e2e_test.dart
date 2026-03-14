@@ -160,75 +160,55 @@ void main() {
   });
 }
 
-/// Sets timestamps on all files that are checked to determine whether `pub get`
-/// needs to be run.
+/// Ensures all package resolutions are up to date so that neither
+/// cli_launcher's `_pubspecLockIsUpToDate` check nor `dart run`'s
+/// auto-resolution will trigger `pub get`.
 ///
-/// This sets up timestamps so that:
-///
-/// 1. cli_launcher's `_pubspecLockIsUpToDate` considers the lock file up to
-///    date (lock >= pubspec for the consumer package).
-/// 2. `dart run`'s auto-resolution does not trigger. `dart run` checks
-///    `package_config.json` against all pubspec/lock files, including those of
-///    transitive path dependencies.
-///
-/// To avoid issues with future timestamps on Windows (which may not be
-/// supported by all filesystem APIs), all pubspec/lock files are set to
-/// timestamps in the past, and `package_config.json` files are set to the
-/// current time.
+/// This runs `dart pub get` in all relevant directories to guarantee fresh
+/// `package_config.json` files, then sets the consumer's pubspec/lock
+/// timestamps to preserve the caller's intended relative ordering.
 void _setUpToDateTimestamps(
   String workingDirectory,
   DateTime pubspecTimestamp,
   DateTime lockTimestamp,
 ) {
-  // Consumer package files.
-  final packageConfigFile = File(
-    '$workingDirectory/.dart_tool/package_config.json',
-  );
   final pubspecFile = File('$workingDirectory/pubspec.yaml');
   final lockFile = File('$workingDirectory/pubspec.lock');
 
-  // Path dependency: example_v1 (depended on by consumer_v1).
-  final pathDepPubspecFile = File('./fixture_packages/example_v1/pubspec.yaml');
-  final pathDepLockFile = File('./fixture_packages/example_v1/pubspec.lock');
-  final pathDepPackageConfigFile = File(
-    './fixture_packages/example_v1/.dart_tool/package_config.json',
+  // Run `dart pub get` in all relevant directories to ensure
+  // `package_config.json` files are fresh and consistent with the current SDK.
+  // This is the most reliable way to prevent `dart run`'s auto-resolution,
+  // especially on Windows where timestamp manipulation via
+  // `setLastModifiedSync` may not reliably prevent auto-resolution.
+  Process.runSync(
+    'dart',
+    ['pub', 'get'],
+    workingDirectory: './fixture_packages/example_v1',
+    runInShell: Platform.isWindows,
+  );
+  Process.runSync(
+    'dart',
+    ['pub', 'get'],
+    workingDirectory: workingDirectory,
+    runInShell: Platform.isWindows,
   );
 
-  // Transitive path dependency: root cli_launcher package (depended on by
-  // example_v1 via `path: ../..`).
-  final rootPubspecFile = File('./pubspec.yaml');
-
-  // Use a base time 2 hours in the past. This ensures that even after adding
-  // offsets for relative timestamp ordering, all pubspec/lock files remain
-  // well before the current time.
-  final baseTime = DateTime.now().subtract(const Duration(hours: 2));
-
-  // Compute past timestamps that preserve the caller's intended relative
-  // ordering between pubspec and lock files.
-  final pastPubspec = baseTime;
-  final DateTime pastLock;
+  // Set the consumer's pubspec/lock timestamps to preserve the caller's
+  // intended relative ordering. Both must be before `package_config.json`
+  // (which was just created by `dart pub get`).
+  final packageConfigTime = File(
+    '$workingDirectory/.dart_tool/package_config.json',
+  ).lastModifiedSync();
+  final basePubspec = packageConfigTime.subtract(const Duration(hours: 2));
+  final DateTime baseLock;
   if (lockTimestamp.isAfter(pubspecTimestamp)) {
-    pastLock = baseTime.add(lockTimestamp.difference(pubspecTimestamp));
+    baseLock = basePubspec.add(lockTimestamp.difference(pubspecTimestamp));
   } else {
-    pastLock = baseTime;
+    baseLock = basePubspec;
   }
 
-  // Set all pubspec and lock files to past timestamps.
-  pubspecFile.setLastModifiedSync(pastPubspec);
-  lockFile.setLastModifiedSync(pastLock);
-  pathDepPubspecFile.setLastModifiedSync(pastPubspec);
-  if (pathDepLockFile.existsSync()) {
-    pathDepLockFile.setLastModifiedSync(pastPubspec);
-  }
-  rootPubspecFile.setLastModifiedSync(pastPubspec);
-
-  // Set package_config.json files to the current time, ensuring they are
-  // newer than all pubspec/lock files.
-  final now = DateTime.now();
-  packageConfigFile.setLastModifiedSync(now);
-  if (pathDepPackageConfigFile.existsSync()) {
-    pathDepPackageConfigFile.setLastModifiedSync(now);
-  }
+  pubspecFile.setLastModifiedSync(basePubspec);
+  lockFile.setLastModifiedSync(baseLock);
 }
 
 String runExampleCli({
