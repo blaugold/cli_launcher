@@ -232,28 +232,22 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // is located in the `.dart_tool/pub/bin/<package>` directory in
     // the specified package.
     packageRoot = File(scriptPath).parent.parent.parent.parent.parent;
-  } else if (scriptPath.contains(
+  } else if (Platform.resolvedExecutable.contains(
     path.join('app-bundles', executable.package),
   )) {
     // The binary of an executable installed via `dart install` is located
     // in the `bundle/bin` directory within a versioned package.
-    // Structure: <install-dir>/app-bundles/<package>/hosted/<version>/bundle/bin/<executable>
-    packageRoot = File(scriptPath).parent.parent.parent;
+    // Structure: <install-dir>/app-bundles/<package>/<source>/<version>/bundle/bin/<executable>
+    // Platform.resolvedExecutable is used instead of Platform.script because
+    // for AOT-compiled binaries, Platform.script may not contain the actual
+    // binary path (e.g. when invoked via a shell).
+    packageRoot =
+        File(Platform.resolvedExecutable).parent.parent.parent;
   } else {
-    // Try resolving symlinks in case the executable is a symlink,
-    // e.g. from ~/.local/state/Dart/install/bin/.
-    final resolvedPath = File(scriptPath).resolveSymbolicLinksSync();
-    if (resolvedPath != scriptPath &&
-        resolvedPath.contains(
-          path.join('app-bundles', executable.package),
-        )) {
-      packageRoot = File(resolvedPath).parent.parent.parent;
-    } else {
-      throw StateError(
-        'Could not find global installation of $executable. '
-        'This is likely a bug in `package:cli_launcher`.',
-      );
-    }
+    throw StateError(
+      'Could not find global installation of $executable. '
+      'This is likely a bug in `package:cli_launcher`.',
+    );
   }
 
   return ExecutableInstallation(
