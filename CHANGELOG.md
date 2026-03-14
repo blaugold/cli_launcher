@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## 2026-03-14
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
+ - [`cli_launcher` - `v0.3.2+2`](#cli_launcher---v0322)
+
+---
+
+#### `cli_launcher` - `v0.3.2+2`
+
+ - **FIX**: support path-activated workspace packages ([#18](https://github.com/blaugold/cli_launcher/issues/18)). ([1cf4792d](https://github.com/blaugold/cli_launcher/commit/1cf4792df70c42924db4a9eea6109f3e2f8a5303))
+ - **FIX**: format test/e2e_test.dart. ([b38182e1](https://github.com/blaugold/cli_launcher/commit/b38182e12b540cedb7a68adf1e0908cb6b64d6aa))
+ - **FIX**: prevent `dart run` auto-resolution from interfering with pubspec timestamp tests. ([2e88783b](https://github.com/blaugold/cli_launcher/commit/2e88783b53cd7d49d87b88bd7b77fd5a1def7524))
+ - **FIX**: treat equal timestamps as up-to-date in `_pubspecLockIsUpToDate` ([#16](https://github.com/blaugold/cli_launcher/issues/16)). ([44bd9f34](https://github.com/blaugold/cli_launcher/commit/44bd9f349650b388f3f286742b468d23f1bf9172))
+ - **FIX**: format lib/cli_launcher.dart. ([179ee73e](https://github.com/blaugold/cli_launcher/commit/179ee73edf06d72203247f08c1cc5d54b1c7de24))
+ - **FIX**: Support binaries installed by `dart install` ([#19](https://github.com/blaugold/cli_launcher/issues/19)). ([b342628c](https://github.com/blaugold/cli_launcher/commit/b342628c6ca2e757fbd4651a192fbc95bae2189e))
+
+## 0.3.2+2
+
+ - **FIX**: support path-activated workspace packages ([#18](https://github.com/blaugold/cli_launcher/issues/18)). ([1cf4792d](https://github.com/blaugold/cli_launcher/commit/1cf4792df70c42924db4a9eea6109f3e2f8a5303))
+ - **FIX**: format test/e2e_test.dart. ([b38182e1](https://github.com/blaugold/cli_launcher/commit/b38182e12b540cedb7a68adf1e0908cb6b64d6aa))
+ - **FIX**: prevent `dart run` auto-resolution from interfering with pubspec timestamp tests. ([2e88783b](https://github.com/blaugold/cli_launcher/commit/2e88783b53cd7d49d87b88bd7b77fd5a1def7524))
+ - **FIX**: treat equal timestamps as up-to-date in `_pubspecLockIsUpToDate` ([#16](https://github.com/blaugold/cli_launcher/issues/16)). ([44bd9f34](https://github.com/blaugold/cli_launcher/commit/44bd9f349650b388f3f286742b468d23f1bf9172))
+ - **FIX**: format lib/cli_launcher.dart. ([179ee73e](https://github.com/blaugold/cli_launcher/commit/179ee73edf06d72203247f08c1cc5d54b1c7de24))
+ - **FIX**: Support binaries installed by `dart install` ([#19](https://github.com/blaugold/cli_launcher/issues/19)). ([b342628c](https://github.com/blaugold/cli_launcher/commit/b342628c6ca2e757fbd4651a192fbc95bae2189e))
+
+
 ## 2025-08-03
 
 ### Changes
