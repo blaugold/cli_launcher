@@ -117,7 +117,10 @@ void main() {
 
       final output = runExampleCli(workingDirectory: workingDirectory);
 
-      expect(output, isNot(contains('Resolving dependencies...')));
+      expect(
+        _withoutDartRunAutoResolution(output),
+        isNot(contains('Resolving dependencies...')),
+      );
     });
 
     test('without pubspec.lock runs pub get', () {
@@ -155,60 +158,66 @@ void main() {
 
       final output = runExampleCli(workingDirectory: workingDirectory);
 
-      expect(output, isNot(contains('Resolving dependencies...')));
+      expect(
+        _withoutDartRunAutoResolution(output),
+        isNot(contains('Resolving dependencies...')),
+      );
     });
   });
 }
 
-/// Ensures all package resolutions are up to date so that neither
-/// cli_launcher's `_pubspecLockIsUpToDate` check nor `dart run`'s
-/// auto-resolution will trigger `pub get`.
+/// Sets timestamps on all files that are checked to determine whether `pub get`
+/// needs to be run.
 ///
-/// This runs `dart pub get` in all relevant directories to guarantee fresh
-/// `package_config.json` files, then sets the consumer's pubspec/lock
-/// timestamps to preserve the caller's intended relative ordering.
+/// This includes the pubspec files in the consumer package as well as the
+/// `.dart_tool/package_config.json` and the path dependency's `pubspec.yaml`,
+/// which are checked by `dart run`'s own auto-resolution.
 void _setUpToDateTimestamps(
   String workingDirectory,
   DateTime pubspecTimestamp,
   DateTime lockTimestamp,
 ) {
+  final packageConfigFile = File(
+    '$workingDirectory/.dart_tool/package_config.json',
+  );
   final pubspecFile = File('$workingDirectory/pubspec.yaml');
   final lockFile = File('$workingDirectory/pubspec.lock');
+  // Path dependency of consumer_v1.
+  final pathDepPubspecFile = File('./fixture_packages/example_v1/pubspec.yaml');
 
-  // Run `dart pub get` in all relevant directories to ensure
-  // `package_config.json` files are fresh and consistent with the current SDK.
-  // This is the most reliable way to prevent `dart run`'s auto-resolution,
-  // especially on Windows where timestamp manipulation via
-  // `setLastModifiedSync` may not reliably prevent auto-resolution.
-  Process.runSync(
-    'dart',
-    ['pub', 'get'],
-    workingDirectory: './fixture_packages/example_v1',
-    runInShell: Platform.isWindows,
+  // Set package_config.json to be the newest to prevent `dart run` from
+  // triggering its own pub get.
+  final newestTimestamp = lockTimestamp.isAfter(pubspecTimestamp)
+      ? lockTimestamp
+      : pubspecTimestamp;
+  packageConfigFile.setLastModifiedSync(newestTimestamp);
+  pathDepPubspecFile.setLastModifiedSync(pubspecTimestamp);
+  pubspecFile.setLastModifiedSync(pubspecTimestamp);
+  lockFile.setLastModifiedSync(lockTimestamp);
+}
+
+/// Strips `dart run`'s auto-resolution output from the given [output].
+///
+/// On Windows, `dart run` may trigger auto-resolution for path dependencies
+/// regardless of timestamps. This produces output like:
+///
+/// ```
+/// Resolving dependencies...
+/// Downloading packages...
+/// No dependencies would change in `<path>`.
+/// ```
+///
+/// This is unrelated to cli_launcher's own `_updateDependencies` and should be
+/// ignored when checking whether cli_launcher triggered `pub get`.
+String _withoutDartRunAutoResolution(String output) {
+  return output.replaceAll(
+    RegExp(
+      r'Resolving dependencies\.\.\.\n'
+      r'Downloading packages\.\.\.\n'
+      r'No dependencies would change in `[^`]+`\.\n',
+    ),
+    '',
   );
-  Process.runSync(
-    'dart',
-    ['pub', 'get'],
-    workingDirectory: workingDirectory,
-    runInShell: Platform.isWindows,
-  );
-
-  // Set the consumer's pubspec/lock timestamps to preserve the caller's
-  // intended relative ordering. Both must be before `package_config.json`
-  // (which was just created by `dart pub get`).
-  final packageConfigTime = File(
-    '$workingDirectory/.dart_tool/package_config.json',
-  ).lastModifiedSync();
-  final basePubspec = packageConfigTime.subtract(const Duration(hours: 2));
-  final DateTime baseLock;
-  if (lockTimestamp.isAfter(pubspecTimestamp)) {
-    baseLock = basePubspec.add(lockTimestamp.difference(pubspecTimestamp));
-  } else {
-    baseLock = basePubspec;
-  }
-
-  pubspecFile.setLastModifiedSync(basePubspec);
-  lockFile.setLastModifiedSync(baseLock);
 }
 
 String runExampleCli({
