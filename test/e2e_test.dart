@@ -163,38 +163,71 @@ void main() {
 /// Sets timestamps on all files that are checked to determine whether `pub get`
 /// needs to be run.
 ///
-/// This includes the pubspec files in the consumer package as well as the
-/// `.dart_tool/package_config.json` and the path dependency's `pubspec.yaml`,
-/// which are checked by `dart run`'s own auto-resolution.
+/// This sets up timestamps so that:
+/// 1. cli_launcher's `_pubspecLockIsUpToDate` considers the lock file up to date
+///    (lock >= pubspec for the consumer package).
+/// 2. `dart run`'s auto-resolution does not trigger. `dart run` checks
+///    `package_config.json` against all pubspec/lock files, including those of
+///    transitive path dependencies.
+///
+/// To avoid issues with future timestamps on Windows (which may not be
+/// supported by all filesystem APIs), all pubspec/lock files are set to
+/// timestamps in the past, and `package_config.json` files are set to the
+/// current time.
 void _setUpToDateTimestamps(
   String workingDirectory,
   DateTime pubspecTimestamp,
   DateTime lockTimestamp,
 ) {
+  // Consumer package files.
   final packageConfigFile = File(
     '$workingDirectory/.dart_tool/package_config.json',
   );
   final pubspecFile = File('$workingDirectory/pubspec.yaml');
   final lockFile = File('$workingDirectory/pubspec.lock');
-  // Path dependency of consumer_v1.
+
+  // Path dependency: example_v1 (depended on by consumer_v1).
   final pathDepPubspecFile = File('./fixture_packages/example_v1/pubspec.yaml');
+  final pathDepLockFile = File('./fixture_packages/example_v1/pubspec.lock');
   final pathDepPackageConfigFile = File(
     './fixture_packages/example_v1/.dart_tool/package_config.json',
   );
 
-  // Set package_config.json files to be strictly newer than all pubspec files
-  // to prevent `dart run` from triggering its own pub get. `dart run` checks
-  // both the consumer's and path dependency's package_config.json. On Windows,
-  // equal timestamps can cause `dart run` to consider dependencies stale.
-  final newestTimestamp = lockTimestamp.isAfter(pubspecTimestamp)
-      ? lockTimestamp
-      : pubspecTimestamp;
-  final configTimestamp = newestTimestamp.add(const Duration(seconds: 2));
-  packageConfigFile.setLastModifiedSync(configTimestamp);
-  pathDepPackageConfigFile.setLastModifiedSync(configTimestamp);
-  pathDepPubspecFile.setLastModifiedSync(pubspecTimestamp);
-  pubspecFile.setLastModifiedSync(pubspecTimestamp);
-  lockFile.setLastModifiedSync(lockTimestamp);
+  // Transitive path dependency: root cli_launcher package (depended on by
+  // example_v1 via `path: ../..`).
+  final rootPubspecFile = File('./pubspec.yaml');
+
+  // Use a base time 2 hours in the past. This ensures that even after adding
+  // offsets for relative timestamp ordering, all pubspec/lock files remain
+  // well before the current time.
+  final baseTime = DateTime.now().subtract(const Duration(hours: 2));
+
+  // Compute past timestamps that preserve the caller's intended relative
+  // ordering between pubspec and lock files.
+  final pastPubspec = baseTime;
+  final DateTime pastLock;
+  if (lockTimestamp.isAfter(pubspecTimestamp)) {
+    pastLock = baseTime.add(lockTimestamp.difference(pubspecTimestamp));
+  } else {
+    pastLock = baseTime;
+  }
+
+  // Set all pubspec and lock files to past timestamps.
+  pubspecFile.setLastModifiedSync(pastPubspec);
+  lockFile.setLastModifiedSync(pastLock);
+  pathDepPubspecFile.setLastModifiedSync(pastPubspec);
+  if (pathDepLockFile.existsSync()) {
+    pathDepLockFile.setLastModifiedSync(pastPubspec);
+  }
+  rootPubspecFile.setLastModifiedSync(pastPubspec);
+
+  // Set package_config.json files to the current time, ensuring they are
+  // newer than all pubspec/lock files.
+  final now = DateTime.now();
+  packageConfigFile.setLastModifiedSync(now);
+  if (pathDepPackageConfigFile.existsSync()) {
+    pathDepPackageConfigFile.setLastModifiedSync(now);
+  }
 }
 
 String runExampleCli({
