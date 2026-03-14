@@ -112,11 +112,8 @@ void main() {
 
     test('with equal pubspec timestamps does not run pub get', () {
       const workingDirectory = './fixture_packages/consumer_v1';
-      final pubspecFile = File('$workingDirectory/pubspec.yaml');
-      final lockFile = File('$workingDirectory/pubspec.lock');
       final timestamp = DateTime.now();
-      pubspecFile.setLastModifiedSync(timestamp);
-      lockFile.setLastModifiedSync(timestamp);
+      _setUpToDateTimestamps(workingDirectory, timestamp, timestamp);
 
       final output = runExampleCli(workingDirectory: workingDirectory);
 
@@ -152,18 +149,45 @@ void main() {
 
     test('with newer pubspec.lock does not run pub get', () {
       const workingDirectory = './fixture_packages/consumer_v1';
-      final pubspecFile = File('$workingDirectory/pubspec.yaml');
-      final lockFile = File('$workingDirectory/pubspec.lock');
       final lockTimestamp = DateTime.now();
       final pubspecTimestamp = lockTimestamp.subtract(const Duration(hours: 1));
-      pubspecFile.setLastModifiedSync(pubspecTimestamp);
-      lockFile.setLastModifiedSync(lockTimestamp);
+      _setUpToDateTimestamps(workingDirectory, pubspecTimestamp, lockTimestamp);
 
       final output = runExampleCli(workingDirectory: workingDirectory);
 
       expect(output, isNot(contains('Resolving dependencies...')));
     });
   });
+}
+
+/// Sets timestamps on all files that are checked to determine whether `pub
+/// get` needs to be run.
+///
+/// This includes the pubspec files in the consumer package as well as the
+/// `.dart_tool/package_config.json` and the path dependency's `pubspec.yaml`,
+/// which are checked by `dart run`'s own auto-resolution.
+void _setUpToDateTimestamps(
+  String workingDirectory,
+  DateTime pubspecTimestamp,
+  DateTime lockTimestamp,
+) {
+  final packageConfigFile = File(
+    '$workingDirectory/.dart_tool/package_config.json',
+  );
+  final pubspecFile = File('$workingDirectory/pubspec.yaml');
+  final lockFile = File('$workingDirectory/pubspec.lock');
+  // Path dependency of consumer_v1.
+  final pathDepPubspecFile = File('./fixture_packages/example_v1/pubspec.yaml');
+
+  // Set package_config.json to be the newest to prevent `dart run` from
+  // triggering its own pub get.
+  final newestTimestamp = lockTimestamp.isAfter(pubspecTimestamp)
+      ? lockTimestamp
+      : pubspecTimestamp;
+  packageConfigFile.setLastModifiedSync(newestTimestamp);
+  pathDepPubspecFile.setLastModifiedSync(pubspecTimestamp);
+  pubspecFile.setLastModifiedSync(pubspecTimestamp);
+  lockFile.setLastModifiedSync(lockTimestamp);
 }
 
 String runExampleCli({
