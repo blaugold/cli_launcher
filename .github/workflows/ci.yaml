@@ -21,6 +21,9 @@ jobs:
       - uses: dart-lang/setup-dart@v1
         with:
           sdk: ${{ matrix.dart }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ matrix.dart == 'dev' && 'master' || matrix.dart }}
       - run: dart pub global activate melos
       - run: dart pub global activate daco
       - run: melos bootstrap
@@ -28,6 +31,7 @@ jobs:
       - run: melos analyze
       - run: melos run activate_example_cli
       - run: melos run activate_workspace_example_cli
+      - run: melos run activate_flutter_workspace_example_cli
       - run: melos test
       - run: melos run install_example_cli
       - run: dart test test/e2e_dart_install_test.dart -j 1

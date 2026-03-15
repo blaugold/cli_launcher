@@ -33,6 +33,23 @@ void main() {
     );
   });
 
+  test('run from Flutter workspace member', () {
+    final output = runExampleCli(
+      workingDirectory:
+          './fixture_packages/flutter_workspace/packages/flutter_package',
+      executable: 'example_flutter_workspace',
+    );
+
+    expect(
+      output,
+      matches(
+        RegExp(
+          '.*Running flutter workspace example with local version null and global version 1.0.0.*',
+        ),
+      ),
+    );
+  });
+
   group('run in source package', () {
     test('with same local and global version', () {
       final output = runExampleCli(

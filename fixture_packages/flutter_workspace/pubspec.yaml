@@ -1,0 +1,9 @@
+name: flutter_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+workspace:
+  - packages/example_flutter_workspace
+  - packages/flutter_package
