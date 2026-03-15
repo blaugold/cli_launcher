@@ -586,7 +586,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     // We found a local installation which is different from the global
     // installation so we launch the local installation.
     final process = await Process.start(
-      localInstallation.requiresFlutter ? 'flutter' : 'dart',
+      'dart',
       [
         'run',
         ...?localConfig?.dartRunArgs,

@@ -34,10 +34,15 @@ void main() {
   });
 
   group('run in Flutter workspace', () {
+    const workspaceRoot = './fixture_packages/flutter_workspace';
+    const sourcePackage = '$workspaceRoot/packages/example_flutter_workspace';
+    const flutterPackage = '$workspaceRoot/packages/flutter_package';
+    const executable = 'example_flutter_workspace';
+
     test('from workspace root', () {
       final output = runExampleCli(
-        workingDirectory: './fixture_packages/flutter_workspace',
-        executable: 'example_flutter_workspace',
+        workingDirectory: workspaceRoot,
+        executable: executable,
       );
 
       expect(
@@ -52,9 +57,8 @@ void main() {
 
     test('from Flutter member package', () {
       final output = runExampleCli(
-        workingDirectory:
-            './fixture_packages/flutter_workspace/packages/flutter_package',
-        executable: 'example_flutter_workspace',
+        workingDirectory: flutterPackage,
+        executable: executable,
       );
 
       expect(
@@ -62,6 +66,83 @@ void main() {
         matches(
           RegExp(
             '.*Running flutter workspace example with local version null and global version 1.0.0.*',
+          ),
+        ),
+      );
+    });
+
+    test('from source package with up to date deps', () {
+      _setFlutterWorkspaceUpToDateTimestamps(DateTime.now());
+
+      final output = runExampleCli(
+        workingDirectory: sourcePackage,
+        executable: executable,
+      );
+
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running flutter workspace example with '
+            'local version 1.0.0 and global version 1.0.0.*',
+          ),
+        ),
+      );
+    });
+
+    test('from source package without pubspec.lock runs flutter pub get', () {
+      final lockFile = File('$workspaceRoot/pubspec.lock');
+      final hadLock = lockFile.existsSync();
+      String? lockContents;
+      if (hadLock) {
+        lockContents = lockFile.readAsStringSync();
+        lockFile.deleteSync();
+      }
+
+      try {
+        final output = runExampleCli(
+          workingDirectory: sourcePackage,
+          executable: executable,
+        );
+
+        expect(output, contains('Resolving dependencies...'));
+        expect(
+          output,
+          matches(
+            RegExp(
+              '.*Running flutter workspace example with '
+              'local version 1.0.0 and global version 1.0.0.*',
+            ),
+          ),
+        );
+      } finally {
+        // Restore the lock file so other tests aren't affected.
+        if (hadLock) {
+          lockFile.writeAsStringSync(lockContents!);
+        }
+      }
+    });
+
+    test('from source package with out of date deps runs flutter pub get', () {
+      final pubspecFile = File('$sourcePackage/pubspec.yaml');
+      final lockFile = File('$workspaceRoot/pubspec.lock');
+      final pubspecTimestamp = DateTime.now();
+      final lockTimestamp = pubspecTimestamp.subtract(const Duration(hours: 1));
+      pubspecFile.setLastModifiedSync(pubspecTimestamp);
+      lockFile.setLastModifiedSync(lockTimestamp);
+
+      final output = runExampleCli(
+        workingDirectory: sourcePackage,
+        executable: executable,
+      );
+
+      expect(output, contains('Resolving dependencies...'));
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running flutter workspace example with '
+            'local version 1.0.0 and global version 1.0.0.*',
           ),
         ),
       );
@@ -257,6 +338,32 @@ void _setUpToDateTimestamps(
   pathDepPubspecFile.setLastModifiedSync(pubspecTimestamp);
   pubspecFile.setLastModifiedSync(pubspecTimestamp);
   lockFile.setLastModifiedSync(lockTimestamp);
+}
+
+void _setFlutterWorkspaceUpToDateTimestamps(DateTime timestamp) {
+  const workspaceRoot = './fixture_packages/flutter_workspace';
+  const sourcePackage = '$workspaceRoot/packages/example_flutter_workspace';
+
+  final packageConfigFile = File(
+    '$workspaceRoot/.dart_tool/package_config.json',
+  );
+  final workspacePubspecFile = File('$workspaceRoot/pubspec.yaml');
+  final sourcePubspecFile = File('$sourcePackage/pubspec.yaml');
+  final lockFile = File('$workspaceRoot/pubspec.lock');
+
+  packageConfigFile.setLastModifiedSync(timestamp);
+  workspacePubspecFile.setLastModifiedSync(timestamp);
+  sourcePubspecFile.setLastModifiedSync(timestamp);
+  lockFile.setLastModifiedSync(timestamp);
+
+  // Also update the Flutter package pubspec and cli_launcher pubspec since
+  // they are path dependencies checked by `flutter run`'s auto-resolution.
+  final flutterPubspecFile = File(
+    '$workspaceRoot/packages/flutter_package/pubspec.yaml',
+  );
+  flutterPubspecFile.setLastModifiedSync(timestamp);
+  final cliLauncherPubspecFile = File('./pubspec.yaml');
+  cliLauncherPubspecFile.setLastModifiedSync(timestamp);
 }
 
 String runExampleCli({
