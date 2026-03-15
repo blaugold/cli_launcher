@@ -95,10 +95,12 @@ class ExecutableInstallation {
     required this.name,
     required this.isSelf,
     bool? isFromPath,
+    bool? requiresFlutter,
     required this.packageRoot,
     Directory? lockFileRoot,
   }) : _version = version,
        _isFromPath = isFromPath,
+       _requiresFlutter = requiresFlutter,
        lockFileRoot = lockFileRoot ?? packageRoot;
 
   /// The name of the executable.
@@ -118,6 +120,9 @@ class ExecutableInstallation {
   /// path dependency, if known.
   bool get isFromPath => _isFromPath ??= _loadIsFromPath();
 
+  /// Whether the package or its workspace requires the Flutter SDK.
+  bool get requiresFlutter => _requiresFlutter ??= _loadRequiresFlutter();
+
   /// The root directory of the package in which the executable is installed.
   final Directory packageRoot;
 
@@ -133,6 +138,9 @@ class ExecutableInstallation {
 
   /// The loaded [isFromPath] value, if any.
   bool? _isFromPath;
+
+  /// The loaded [requiresFlutter] value, if any.
+  bool? _requiresFlutter;
 
   late final _pubspecLockEntry = _loadPubspecLockEntry();
 
@@ -179,6 +187,55 @@ class ExecutableInstallation {
     return true;
   }
 
+  bool _loadRequiresFlutter() {
+    // Fast path: check package_config.json if it's up to date.
+    final packageConfigFile = File(
+      path.join(lockFileRoot.path, '.dart_tool', 'package_config.json'),
+    );
+    if (packageConfigFile.existsSync() &&
+        !packageConfigFile.lastModifiedSync().isBefore(
+          File(path.join(packageRoot.path, 'pubspec.yaml'))
+              .lastModifiedSync(),
+        )) {
+      final packageConfig = jsonDecode(packageConfigFile.readAsStringSync())
+          as Map<String, Object?>;
+      final packages = packageConfig['packages'] as List<Object?>?;
+      if (packages != null) {
+        return packages.any(
+          (p) => (p as Map<String, Object?>)['name'] == 'flutter',
+        );
+      }
+    }
+
+    // Fallback: scan pubspec.yaml files.
+    final rootPubspecFile = File(path.join(lockFileRoot.path, 'pubspec.yaml'));
+    final rootPubspec = _parsePubspec(rootPubspecFile);
+    final workspace = rootPubspec['workspace'] as YamlList?;
+
+    if (workspace != null) {
+      // Check all workspace members.
+      for (final entry in workspace) {
+        final memberPubspecFile = File(
+          path.join(lockFileRoot.path, entry as String, 'pubspec.yaml'),
+        );
+        if (memberPubspecFile.existsSync()) {
+          final memberPubspec = _parsePubspec(memberPubspecFile);
+          if (_pubspecDependsOnFlutter(memberPubspec)) {
+            return true;
+          }
+        }
+      }
+      return _pubspecDependsOnFlutter(rootPubspec);
+    }
+
+    final pubspec = lockFileRoot.path == packageRoot.path
+        ? rootPubspec
+        : _parsePubspec(
+            File(path.join(packageRoot.path, 'pubspec.yaml')),
+          );
+    return _pubspecDependsOnFlutter(pubspec);
+  }
+
   bool get _pubspecLockIsUpToDate {
     final pubspecFile = File(path.join(packageRoot.path, 'pubspec.yaml'));
     final pubspecLockFile = File(path.join(lockFileRoot.path, 'pubspec.lock'));
@@ -193,11 +250,12 @@ class ExecutableInstallation {
 
   Future<bool> _updateDependencies([List<String>? pubGetArgs]) async {
     final result = await Process.start(
-      'dart',
+      requiresFlutter ? 'flutter' : 'dart',
       ['pub', 'get', if (pubGetArgs != null) ...pubGetArgs],
       mode: ProcessStartMode.inheritStdio,
       workingDirectory: packageRoot.path,
-      // Necessary so that `dart.bat` wrapper can be found on Windows.
+      // Necessary so that `dart.bat`/`flutter.bat` wrapper can be found on
+      // Windows.
       runInShell: Platform.isWindows,
     );
     exitCode = await result.exitCode;
@@ -211,6 +269,7 @@ class ExecutableInstallation {
       name: ExecutableName._fromJson((json['e']! as Map).cast()),
       isSelf: json['s']! as bool,
       isFromPath: json['fp'] as bool?,
+      requiresFlutter: json['f'] as bool?,
       packageRoot: packageRoot,
       lockFileRoot: json['lr'] != null
           ? Directory(json['lr']! as String)
@@ -224,10 +283,24 @@ class ExecutableInstallation {
       'e': name._toJson(),
       's': isSelf,
       'fp': _isFromPath,
+      'f': _requiresFlutter,
       'p': packageRoot.path,
       if (lockFileRoot.path != packageRoot.path) 'lr': lockFileRoot.path,
     };
   }
+}
+
+YamlMap _parsePubspec(File file) {
+  final yaml = loadYamlDocument(
+    file.readAsStringSync(),
+    sourceUrl: file.uri,
+  );
+  return yaml.contents as YamlMap;
+}
+
+bool _pubspecDependsOnFlutter(YamlMap pubspec) {
+  final deps = pubspec['dependencies'] as YamlMap?;
+  return deps != null && deps.containsKey('flutter');
 }
 
 ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
@@ -328,6 +401,7 @@ ExecutableInstallation? _findLocalInstallation(
   if (pubspecFile.existsSync()) {
     final pubspecString = pubspecFile.readAsStringSync();
     String? name;
+    String? resolution;
     YamlMap? dependencies;
     YamlMap? devDependencies;
 
@@ -338,6 +412,7 @@ ExecutableInstallation? _findLocalInstallation(
       );
       final pubspec = pubspecYaml.contents as YamlMap;
       name = pubspec['name'] as String?;
+      resolution = pubspec['resolution'] as String?;
       dependencies = pubspec['dependencies'] as YamlMap?;
       devDependencies = pubspec['dev_dependencies'] as YamlMap?;
     } catch (error, stackTrace) {
@@ -357,11 +432,34 @@ ExecutableInstallation? _findLocalInstallation(
         name: executable,
         isSelf: isSelf,
         packageRoot: start,
+        lockFileRoot: resolution == 'workspace'
+            ? _findWorkspaceRoot(start)
+            : null,
       );
     }
   }
 
   return _findLocalInstallation(executable, findSelf, start.parent);
+}
+
+Directory? _findWorkspaceRoot(Directory memberDir) {
+  var current = memberDir.parent;
+  while (!path.equals(current.path, current.parent.path)) {
+    final pubspecFile = File(path.join(current.path, 'pubspec.yaml'));
+    if (pubspecFile.existsSync()) {
+      final pubspecString = pubspecFile.readAsStringSync();
+      final pubspecYaml = loadYamlDocument(
+        pubspecString,
+        sourceUrl: pubspecFile.uri,
+      );
+      final pubspec = pubspecYaml.contents as YamlMap;
+      if (pubspec['workspace'] != null) {
+        return current;
+      }
+    }
+    current = current.parent;
+  }
+  return null;
 }
 
 /// The configuration for launching an executable.
@@ -493,7 +591,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     // We found a local installation which is different from the global
     // installation so we launch the local installation.
     final process = await Process.start(
-      'dart',
+      localInstallation.requiresFlutter ? 'flutter' : 'dart',
       [
         'run',
         ...?localConfig?.dartRunArgs,
