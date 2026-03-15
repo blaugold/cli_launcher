@@ -40,10 +40,10 @@ flowchart TD
     G -- "Yes" --> I
 
     H -- "Failed" --> EXIT["Exit with error"]
-    H -- "OK" --> I{"Should launch\nlocal?"}
+    H -- "OK" --> I{"Source package,\npath dep, or\nversion mismatch?"}
 
-    I -- "Yes: source package,\npath dependency,\nor version mismatch" --> J["Launch local via\ndart run package:executable\n(inject launch context in args)"]
-    I -- "No: same version\nand hosted dependency" --> GLOBAL
+    I -- "Yes" --> J["Launch local via\ndart run package:executable\n(inject launch context in args)"]
+    I -- "No" --> GLOBAL
 
     J --> K["New process starts,\ncalls launchExecutable(),\nfinds launch context in args"]
     K --> D
