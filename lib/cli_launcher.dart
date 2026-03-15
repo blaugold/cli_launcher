@@ -246,20 +246,23 @@ class ExecutableInstallation {
     );
   }
 
-  Future<bool> _updateDependencies([List<String>? pubGetArgs]) async {
-    final result = await Process.start(
-      requiresFlutter ? 'flutter' : 'dart',
+  Future<void> _updateDependencies([List<String>? pubGetArgs]) async {
+    final command = requiresFlutter ? 'flutter' : 'dart';
+    final result = await _runProcess(
+      command,
       ['pub', 'get', if (pubGetArgs != null) ...pubGetArgs],
-      mode: ProcessStartMode.inheritStdio,
       // For workspace members, run from the workspace root so that path
       // dependencies are resolved consistently with the existing pubspec.lock.
       workingDirectory: lockFileRoot.path,
-      // Necessary so that `dart.bat`/`flutter.bat` wrapper can be found on
-      // Windows.
-      runInShell: Platform.isWindows,
     );
-    exitCode = await result.exitCode;
-    return exitCode == 0;
+    if (result.exitCode != 0) {
+      throw _LaunchError(
+        result.exitCode,
+        'Failed to resolve dependencies for ${name.package}.\n'
+        'Ran "$command pub get" in ${lockFileRoot.path}.\n'
+        '${result.combined}',
+      );
+    }
   }
 
   factory ExecutableInstallation._fromJson(Map<String, Object?> json) {
@@ -331,7 +334,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     packageRoot = File(Platform.resolvedExecutable).parent.parent.parent;
   } else {
     throw StateError(
-      'Could not find global installation of $executable. '
+      'Could not find global installation of $executable.\n'
+      'Platform.script: ${Platform.script}\n'
+      'Platform.resolvedExecutable: ${Platform.resolvedExecutable}\n'
       'This is likely a bug in `package:cli_launcher`.',
     );
   }
@@ -412,9 +417,9 @@ ExecutableInstallation? _findLocalInstallation(
       resolution = pubspec['resolution'] as String?;
       dependencies = pubspec['dependencies'] as YamlMap?;
       devDependencies = pubspec['dev_dependencies'] as YamlMap?;
-    } catch (error, stackTrace) {
+    } catch (error) {
       throw StateError(
-        'Could not parse pubspec.yaml at ${start.path}.\n$error\n$stackTrace',
+        'Could not parse ${pubspecFile.path}: $error',
       );
     }
 
@@ -430,7 +435,13 @@ ExecutableInstallation? _findLocalInstallation(
         isSelf: isSelf,
         packageRoot: start,
         lockFileRoot: resolution == 'workspace'
-            ? _findWorkspaceRoot(start)
+            ? _findWorkspaceRoot(start) ??
+                  (throw StateError(
+                    'Could not find workspace root for package at '
+                    '${start.path}. The pubspec.yaml has '
+                    '"resolution: workspace" but no parent directory '
+                    'contains a pubspec.yaml with a "workspace" field.',
+                  ))
             : null,
       );
     }
@@ -505,6 +516,63 @@ class LocalLaunchConfig {
   final List<String>? dartRunArgs;
 }
 
+/// An error that indicates the launch process failed with a specific exit code.
+class _LaunchError {
+  _LaunchError(this.exitCode, this.message);
+
+  final int exitCode;
+  final String message;
+}
+
+/// The result of running a process with captured output.
+class _ProcessOutput {
+  _ProcessOutput({
+    required this.exitCode,
+    required this.stdout,
+    required this.stderr,
+  });
+
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+
+  /// Returns the combined stdout and stderr output, with non-empty sections
+  /// separated by a newline.
+  String get combined {
+    final parts = <String>[
+      if (stdout.isNotEmpty) stdout,
+      if (stderr.isNotEmpty) stderr,
+    ];
+    return parts.join('\n');
+  }
+}
+
+/// Runs a process and captures its stdout and stderr output.
+Future<_ProcessOutput> _runProcess(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+}) async {
+  final process = await Process.start(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory,
+    // Necessary so that `dart.bat`/`flutter.bat` wrapper can be found on
+    // Windows.
+    runInShell: Platform.isWindows,
+  );
+  final results = await (
+    process.stdout.transform(utf8.decoder).join(),
+    process.stderr.transform(utf8.decoder).join(),
+    process.exitCode,
+  ).wait;
+  return _ProcessOutput(
+    stdout: results.$1,
+    stderr: results.$2,
+    exitCode: results.$3,
+  );
+}
+
 const _launchContextMarker = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
 
 LaunchContext? _extractLaunchContext(List<String> args) {
@@ -537,11 +605,10 @@ LaunchContext? _extractLaunchContext(List<String> args) {
 /// ```
 FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
   args = args.toList(); // Make a mutable copy of the arguments.
-  var launchContext = _extractLaunchContext(args);
+  final launchContext = _extractLaunchContext(args);
   if (launchContext != null) {
-    // We are running a local installation that was launched by global
-    // installation. The global installation will have set the environment
-    // variable for the _environmentLaunchContext.
+    // We are running a local installation that was launched by the global
+    // installation.
 
     // We restore the working directory from which the global installation was
     // launched before launching the local installation.
@@ -550,7 +617,18 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     return config.entrypoint(args, launchContext);
   }
 
-  // We are running a global installation.
+  try {
+    await _launchFromGlobalInstallation(args, config);
+  } on _LaunchError catch (error) {
+    exitCode = error.exitCode;
+    stderr.writeln(error.message);
+  }
+}
+
+Future<void> _launchFromGlobalInstallation(
+  List<String> args,
+  LaunchConfig config,
+) async {
   final globalInstallation = _findGlobalInstallation(config.name);
 
   // Try to find a local installation.
@@ -560,7 +638,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
     Directory.current,
   );
 
-  launchContext = LaunchContext(
+  final launchContext = LaunchContext(
     directory: Directory.current,
     globalInstallation: globalInstallation,
     localInstallation: localInstallation,
@@ -575,10 +653,7 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
   if (localInstallation != null && !localInstallation._pubspecLockIsUpToDate) {
     // Ensure that dependencies are up to date so that we can resolve the
     // version of the local installation.
-    if (!await localInstallation._updateDependencies(localConfig?.pubGetArgs)) {
-      // Failed to update dependencies so we abort.
-      return;
-    }
+    await localInstallation._updateDependencies(localConfig?.pubGetArgs);
   }
 
   if (localInstallation != null &&
@@ -586,7 +661,8 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
           localInstallation.isFromPath ||
           localInstallation.version != globalInstallation.version)) {
     // We found a local installation which is different from the global
-    // installation so we launch the local installation.
+    // installation so we launch the local installation, passing through
+    // stdio and exit code directly.
     final process = await Process.start(
       'dart',
       [
