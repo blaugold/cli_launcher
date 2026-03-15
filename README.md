@@ -20,3 +20,31 @@ CLI executable.
 In addition, if the CLI is executed in the package that contains the CLI
 executable, the current version in that package will be launched. This is useful
 for development.
+
+## Launch flow
+
+```mermaid
+flowchart TD
+    A["User invokes CLI"] --> B["launchExecutable()"]
+    B --> C{"Launch context\nin args?"}
+
+    C -- "Yes (relaunched by global)" --> D["Restore original working\ndirectory, call entrypoint"]
+    C -- "No (initial invocation)" --> E["Detect global installation\nfrom Platform.script"]
+
+    E --> F["Search for local installation\n(walk up from cwd, check pubspec.yaml\nfor dependency or dev_dependency)"]
+
+    F -- "Not found" --> GLOBAL["Run entrypoint\nwith global installation"]
+    F -- "Found" --> G{"pubspec.lock\nup to date?"}
+
+    G -- "Missing or\nolder than\npubspec.yaml" --> H["Run pub get from\nlock file root"]
+    G -- "Yes" --> I
+
+    H -- "Failed" --> EXIT["Exit with error"]
+    H -- "OK" --> I{"Should launch\nlocal?"}
+
+    I -- "Yes: source package,\npath dependency,\nor version mismatch" --> J["Launch local via\ndart run package:executable\n(inject launch context in args)"]
+    I -- "No: same version\nand hosted dependency" --> GLOBAL
+
+    J --> K["New process starts,\ncalls launchExecutable(),\nfinds launch context in args"]
+    K --> D
+```
