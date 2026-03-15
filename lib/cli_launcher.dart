@@ -251,7 +251,9 @@ class ExecutableInstallation {
       requiresFlutter ? 'flutter' : 'dart',
       ['pub', 'get', if (pubGetArgs != null) ...pubGetArgs],
       mode: ProcessStartMode.inheritStdio,
-      workingDirectory: packageRoot.path,
+      // For workspace members, run from the workspace root so that path
+      // dependencies are resolved consistently with the existing pubspec.lock.
+      workingDirectory: lockFileRoot.path,
       // Necessary so that `dart.bat`/`flutter.bat` wrapper can be found on
       // Windows.
       runInShell: Platform.isWindows,

@@ -344,26 +344,24 @@ void _setFlutterWorkspaceUpToDateTimestamps(DateTime timestamp) {
   const workspaceRoot = './fixture_packages/flutter_workspace';
   const sourcePackage = '$workspaceRoot/packages/example_flutter_workspace';
 
-  final packageConfigFile = File(
-    '$workspaceRoot/.dart_tool/package_config.json',
-  );
   final workspacePubspecFile = File('$workspaceRoot/pubspec.yaml');
   final sourcePubspecFile = File('$sourcePackage/pubspec.yaml');
   final lockFile = File('$workspaceRoot/pubspec.lock');
-
-  packageConfigFile.setLastModifiedSync(timestamp);
-  workspacePubspecFile.setLastModifiedSync(timestamp);
-  sourcePubspecFile.setLastModifiedSync(timestamp);
-  lockFile.setLastModifiedSync(timestamp);
-
-  // Also update the Flutter package pubspec and cli_launcher pubspec since
-  // they are path dependencies checked by `flutter run`'s auto-resolution.
   final flutterPubspecFile = File(
     '$workspaceRoot/packages/flutter_package/pubspec.yaml',
   );
+
+  workspacePubspecFile.setLastModifiedSync(timestamp);
+  sourcePubspecFile.setLastModifiedSync(timestamp);
+  lockFile.setLastModifiedSync(timestamp);
   flutterPubspecFile.setLastModifiedSync(timestamp);
-  final cliLauncherPubspecFile = File('./pubspec.yaml');
-  cliLauncherPubspecFile.setLastModifiedSync(timestamp);
+
+  // Set package_config.json to be the newest to prevent `dart run` from
+  // triggering its own pub get via auto-resolution of path dependencies.
+  final packageConfigFile = File(
+    '$workspaceRoot/.dart_tool/package_config.json',
+  );
+  packageConfigFile.setLastModifiedSync(timestamp);
 }
 
 String runExampleCli({
