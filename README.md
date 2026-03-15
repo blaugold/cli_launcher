@@ -33,17 +33,17 @@ flowchart TD
 
     E --> F["Search for local installation\n(walk up from cwd, check pubspec.yaml\nfor dependency or dev_dependency)"]
 
-    F -- "Not found" --> GLOBAL["Run entrypoint\nwith global installation"]
     F -- "Found" --> G{"pubspec.lock\nup to date?"}
+    F -- "Not found" --> GLOBAL
 
-    G -- "Missing or\nolder than\npubspec.yaml" --> H["Run pub get from\nlock file root"]
     G -- "Yes" --> I
+    G -- "Missing or\nolder than\npubspec.yaml" --> H["Run pub get from\nlock file root"]
 
-    H -- "Failed" --> EXIT["Exit with error"]
     H -- "OK" --> I{"Source package,\npath dep, or\nversion mismatch?"}
+    H -- "Failed" --> EXIT["Exit with error"]
 
+    I -- "No" --> GLOBAL["Run entrypoint\nwith global installation"]
     I -- "Yes" --> J["Launch local via\ndart run package:executable\n(inject launch context in args)"]
-    I -- "No" --> GLOBAL
 
     J --> K["New process starts,\ncalls launchExecutable(),\nfinds launch context in args"]
     K --> D
