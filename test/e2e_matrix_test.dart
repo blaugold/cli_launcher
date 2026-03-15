@@ -238,6 +238,20 @@ void main() {
           expect(stdout, contains('global=1.0.0'));
           expect(stderr, contains('Launching local installation'));
         });
+
+        // --- resolveLocalLaunchConfig ---
+
+        test('resolveLocalLaunchConfig passes dartRunArgs', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+            arguments: ['--local-launch-config'],
+          );
+          expect(stdout, contains('local=1.0.0'));
+          // --enable-asserts is passed via dartRunArgs by resolveLocalLaunchConfig.
+          expect(stdout, contains('Assertions are enabled.'));
+        });
       });
     }
   }
@@ -577,7 +591,19 @@ void main(List<String> args) {
           'local=\${context.localInstallation?.version} '
           'global=\${context.globalInstallation?.version}',
         );
+
+        assert(() {
+          print('Assertions are enabled.');
+          return true;
+        }());
       },
+      resolveLocalLaunchConfig: args.contains('--local-launch-config')
+          ? (context) async {
+              return LocalLaunchConfig(
+                dartRunArgs: ['--enable-asserts'],
+              );
+            }
+          : null,
     ),
   );
 }
@@ -699,6 +725,7 @@ void main() {}
 
   ({String stdout, String stderr}) runCli({
     required String workingDirectory,
+    List<String> arguments = const [],
   }) {
     final env = {...Platform.environment, 'CLI_LAUNCHER_VERBOSE': '1'};
     if (installedBinDir != null) {
@@ -707,7 +734,7 @@ void main() {}
 
     final result = Process.runSync(
       executableName,
-      [],
+      arguments,
       runInShell: true,
       workingDirectory: workingDirectory,
       stdoutEncoding: utf8,
