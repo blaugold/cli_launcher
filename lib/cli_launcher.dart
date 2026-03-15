@@ -324,7 +324,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // is located in the `bin` directory in a generated package.
     // This package is located in `<pub-cache>/global_packages/<package>`.
     packageRoot = File(scriptPath).parent.parent;
-    _debug('Detected pub cache global installation at ${_relativePath(packageRoot.path)}.');
+    _debug(
+      'Detected pub cache global installation at ${_relativePath(packageRoot.path)}.',
+    );
   } else if (scriptPath.contains(
     path.join('.dart_tool', 'pub', 'bin', executable.package),
   )) {
@@ -334,7 +336,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     );
     packageRoot = root;
     lockFileRootOverride = lockFileRoot;
-    _debug('Detected path-activated installation at ${_relativePath(packageRoot.path)}.');
+    _debug(
+      'Detected path-activated installation at ${_relativePath(packageRoot.path)}.',
+    );
     if (lockFileRootOverride != null) {
       _debug('Lock file root: ${_relativePath(lockFileRootOverride.path)}');
     }
@@ -348,7 +352,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // for AOT-compiled binaries, Platform.script may not contain the actual
     // binary path (e.g. when invoked via a shell).
     packageRoot = File(Platform.resolvedExecutable).parent.parent.parent;
-    _debug('Detected dart install installation at ${_relativePath(packageRoot.path)}.');
+    _debug(
+      'Detected dart install installation at ${_relativePath(packageRoot.path)}.',
+    );
   } else {
     throw StateError(
       'Could not find global installation of $executable.\n'
@@ -419,7 +425,9 @@ ExecutableInstallation? _findLocalInstallation(
 
   final pubspecFile = File(path.join(start.path, 'pubspec.yaml'));
   if (pubspecFile.existsSync()) {
-    _debug('Checking ${_relativePath(pubspecFile.path)} for local installation.');
+    _debug(
+      'Checking ${_relativePath(pubspecFile.path)} for local installation.',
+    );
     final pubspecString = pubspecFile.readAsStringSync();
     String? name;
     String? resolution;
@@ -437,9 +445,7 @@ ExecutableInstallation? _findLocalInstallation(
       dependencies = pubspec['dependencies'] as YamlMap?;
       devDependencies = pubspec['dev_dependencies'] as YamlMap?;
     } catch (error) {
-      throw StateError(
-        'Could not parse ${pubspecFile.path}: $error',
-      );
+      throw StateError('Could not parse ${pubspecFile.path}: $error');
     }
 
     final isSelf = name == executable.package;

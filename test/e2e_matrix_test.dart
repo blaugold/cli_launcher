@@ -209,21 +209,18 @@ void main() {
 
         // --- Dependency freshness: up to date ---
 
-        test(
-          'up to date pubspec.lock does not trigger pub get',
-          () {
-            fixture!.ensureUpToDateTimestamps();
+        test('up to date pubspec.lock does not trigger pub get', () {
+          fixture!.ensureUpToDateTimestamps();
 
-            final (:stdout, :stderr) = fixture!.runCli(
-              workingDirectory: fixture!.consumerDir,
-            );
-            expect(stdout, contains('local=1.0.0'));
-            expect(
-              stderr,
-              isNot(contains('Dependencies are out of date. Running pub get.')),
-            );
-          },
-        );
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+          );
+          expect(stdout, contains('local=1.0.0'));
+          expect(
+            stderr,
+            isNot(contains('Dependencies are out of date. Running pub get.')),
+          );
+        });
 
         // --- Different version: v2 consumer depends on v2 CLI ---
 
@@ -257,8 +254,8 @@ void main() {
   }
 }
 
-/// Ensures pubspec.lock and package_config.json are newer than pubspec.yaml
-/// so that neither cli_launcher nor dart run triggers pub get.
+/// Ensures pubspec.lock and package_config.json are newer than pubspec.yaml so
+/// that neither cli_launcher nor dart run triggers pub get.
 void _ensureUpToDateTimestamps(String dir) {
   final now = DateTime.now();
   final pubspec = File(p.join(dir, 'pubspec.yaml'));
