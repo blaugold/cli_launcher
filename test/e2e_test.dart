@@ -33,21 +33,39 @@ void main() {
     );
   });
 
-  test('run from Flutter workspace member', () {
-    final output = runExampleCli(
-      workingDirectory:
-          './fixture_packages/flutter_workspace/packages/flutter_package',
-      executable: 'example_flutter_workspace',
-    );
+  group('run in Flutter workspace', () {
+    test('from workspace root', () {
+      final output = runExampleCli(
+        workingDirectory: './fixture_packages/flutter_workspace',
+        executable: 'example_flutter_workspace',
+      );
 
-    expect(
-      output,
-      matches(
-        RegExp(
-          '.*Running flutter workspace example with local version null and global version 1.0.0.*',
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running flutter workspace example with local version null and global version 1.0.0.*',
+          ),
         ),
-      ),
-    );
+      );
+    });
+
+    test('from Flutter member package', () {
+      final output = runExampleCli(
+        workingDirectory:
+            './fixture_packages/flutter_workspace/packages/flutter_package',
+        executable: 'example_flutter_workspace',
+      );
+
+      expect(
+        output,
+        matches(
+          RegExp(
+            '.*Running flutter workspace example with local version null and global version 1.0.0.*',
+          ),
+        ),
+      );
+    });
   });
 
   group('run in source package', () {
