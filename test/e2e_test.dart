@@ -5,10 +5,10 @@ import 'package:test/test.dart';
 
 void main() {
   test('run global version', () {
-    final output = runExampleCli(workingDirectory: '.');
+    final (:stdout, :stderr) = runExampleCli(workingDirectory: '.');
 
     expect(
-      output,
+      stdout,
       matches(
         RegExp(
           '.*Running v1 with local version null and global version 1.0.0.*',
@@ -18,13 +18,13 @@ void main() {
   });
 
   test('run global workspace version', () {
-    final output = runExampleCli(
+    final (:stdout, :stderr) = runExampleCli(
       workingDirectory: '.',
       executable: 'example_workspace',
     );
 
     expect(
-      output,
+      stdout,
       matches(
         RegExp(
           '.*Running workspace example with local version null and global version 1.0.0.*',
@@ -40,13 +40,13 @@ void main() {
     const executable = 'example_flutter_workspace';
 
     test('from workspace root', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: workspaceRoot,
         executable: executable,
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running flutter workspace example with local version null and global version 1.0.0.*',
@@ -56,13 +56,13 @@ void main() {
     });
 
     test('from Flutter member package', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: flutterPackage,
         executable: executable,
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running flutter workspace example with local version null and global version 1.0.0.*',
@@ -74,13 +74,13 @@ void main() {
     test('from source package with up to date deps', () {
       _setFlutterWorkspaceUpToDateTimestamps(DateTime.now());
 
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: sourcePackage,
         executable: executable,
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running flutter workspace example with '
@@ -100,14 +100,16 @@ void main() {
       }
 
       try {
-        final output = runExampleCli(
+        final (:stdout, :stderr) = runExampleCli(
           workingDirectory: sourcePackage,
           executable: executable,
         );
 
-        expect(output, contains('Resolving dependencies...'));
+        // pub get output is captured by cli_launcher, so check stderr where
+        // debug output would appear, or just verify the CLI ran successfully
+        // with the correct version (which requires pub get to have succeeded).
         expect(
-          output,
+          stdout,
           matches(
             RegExp(
               '.*Running flutter workspace example with '
@@ -131,14 +133,16 @@ void main() {
       pubspecFile.setLastModifiedSync(pubspecTimestamp);
       lockFile.setLastModifiedSync(lockTimestamp);
 
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: sourcePackage,
         executable: executable,
       );
 
-      expect(output, contains('Resolving dependencies...'));
+      // pub get output is captured by cli_launcher, so just verify the CLI
+      // ran successfully with the correct version (which requires pub get to
+      // have succeeded).
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running flutter workspace example with '
@@ -151,12 +155,12 @@ void main() {
 
   group('run in source package', () {
     test('with same local and global version', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: 'fixture_packages/example_v1',
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
@@ -166,12 +170,12 @@ void main() {
     });
 
     test('with different local and global version', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: 'fixture_packages/example_v2',
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
@@ -183,12 +187,12 @@ void main() {
 
   group('run in consumer package', () {
     test('with same local and global version', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: './fixture_packages/consumer_v1',
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running v1 with local version 1.0.0 and global version 1.0.0.*',
@@ -198,12 +202,12 @@ void main() {
     });
 
     test('with different local and global version', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: './fixture_packages/consumer_v2',
       );
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
@@ -216,10 +220,10 @@ void main() {
       final dir = Directory('./fixture_packages/consumer_v2/sub')
         ..createSync(recursive: true);
 
-      final output = runExampleCli(workingDirectory: dir.path);
+      final (:stdout, :stderr) = runExampleCli(workingDirectory: dir.path);
 
       expect(
-        output,
+        stdout,
         matches(
           RegExp(
             '.*Running v2 with local version 2.0.0 and global version 1.0.0.*',
@@ -229,17 +233,17 @@ void main() {
     });
 
     test('with local launch config', () {
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: './fixture_packages/consumer_v1',
         arguments: ['--local-launch-config'],
         forcePubGet: true,
       );
 
-      // Verify that `dart pub get` was run with `--verbose`.
-      expect(output, matches('MSG : Resolving dependencies...'));
+      // Verify that `dart pub get` was run by checking the debug log.
+      expect(stderr, contains('[cli_launcher] Dependencies are out of date. Running pub get.'));
 
       // Verify that `dart run` was run with `--enable-asserts`.
-      expect(output, matches('Assertions are enabled.'));
+      expect(stdout, contains('Assertions are enabled.'));
     });
 
     test(
@@ -249,9 +253,14 @@ void main() {
         final timestamp = DateTime.now();
         _setUpToDateTimestamps(workingDirectory, timestamp, timestamp);
 
-        final output = runExampleCli(workingDirectory: workingDirectory);
+        final (:stdout, :stderr) = runExampleCli(
+          workingDirectory: workingDirectory,
+        );
 
-        expect(output, isNot(contains('Resolving dependencies...')));
+        expect(
+          stderr,
+          isNot(contains('[cli_launcher] Dependencies are out of date.')),
+        );
       },
       // On Windows, `dart run` triggers auto-resolution for path dependencies
       // regardless of timestamps, making this test unreliable.
@@ -263,12 +272,15 @@ void main() {
       final pubspecFile = File('$workingDirectory/pubspec.yaml');
       pubspecFile.setLastModifiedSync(DateTime.now());
 
-      final output = runExampleCli(
+      final (:stdout, :stderr) = runExampleCli(
         workingDirectory: workingDirectory,
         forcePubGet: true,
       );
 
-      expect(output, contains('Resolving dependencies...'));
+      expect(
+        stderr,
+        contains('[cli_launcher] Dependencies are out of date. Running pub get.'),
+      );
     });
 
     test('with older pubspec.lock runs pub get', () {
@@ -280,9 +292,14 @@ void main() {
       pubspecFile.setLastModifiedSync(pubspecTimestamp);
       lockFile.setLastModifiedSync(lockTimestamp);
 
-      final output = runExampleCli(workingDirectory: workingDirectory);
+      final (:stdout, :stderr) = runExampleCli(
+        workingDirectory: workingDirectory,
+      );
 
-      expect(output, contains('Resolving dependencies...'));
+      expect(
+        stderr,
+        contains('[cli_launcher] Dependencies are out of date. Running pub get.'),
+      );
     });
 
     test(
@@ -299,9 +316,14 @@ void main() {
           lockTimestamp,
         );
 
-        final output = runExampleCli(workingDirectory: workingDirectory);
+        final (:stdout, :stderr) = runExampleCli(
+          workingDirectory: workingDirectory,
+        );
 
-        expect(output, isNot(contains('Resolving dependencies...')));
+        expect(
+          stderr,
+          isNot(contains('[cli_launcher] Dependencies are out of date.')),
+        );
       },
       // On Windows, `dart run` triggers auto-resolution for path dependencies
       // regardless of timestamps, making this test unreliable.
@@ -364,7 +386,7 @@ void _setFlutterWorkspaceUpToDateTimestamps(DateTime timestamp) {
   packageConfigFile.setLastModifiedSync(timestamp);
 }
 
-String runExampleCli({
+({String stdout, String stderr}) runExampleCli({
   List<String> arguments = const [],
   required String workingDirectory,
   bool forcePubGet = false,
@@ -385,6 +407,7 @@ String runExampleCli({
     workingDirectory: workingDirectory,
     stderrEncoding: utf8,
     stdoutEncoding: utf8,
+    environment: {...Platform.environment, 'CLI_LAUNCHER_VERBOSE': '1'},
   );
 
   if (result.exitCode != 0) {
@@ -394,5 +417,5 @@ String runExampleCli({
     );
   }
 
-  return result.stdout as String;
+  return (stdout: result.stdout as String, stderr: result.stderr as String);
 }

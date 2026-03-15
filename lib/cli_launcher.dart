@@ -304,6 +304,10 @@ bool _pubspecDependsOnFlutter(YamlMap pubspec) {
 }
 
 ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
+  _debug('Finding global installation of $executable.');
+  _debug('Platform.script: ${Platform.script}');
+  _debug('Platform.resolvedExecutable: ${Platform.resolvedExecutable}');
+
   final Directory packageRoot;
   Directory? lockFileRootOverride;
 
@@ -313,6 +317,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // is located in the `bin` directory in a generated package.
     // This package is located in `<pub-cache>/global_packages/<package>`.
     packageRoot = File(scriptPath).parent.parent;
+    _debug('Detected pub cache global installation at ${packageRoot.path}.');
   } else if (scriptPath.contains(
     path.join('.dart_tool', 'pub', 'bin', executable.package),
   )) {
@@ -322,16 +327,21 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     );
     packageRoot = root;
     lockFileRootOverride = lockFileRoot;
+    _debug('Detected path-activated installation at ${packageRoot.path}.');
+    if (lockFileRootOverride != null) {
+      _debug('Lock file root: ${lockFileRootOverride.path}');
+    }
   } else if (Platform.resolvedExecutable.contains(
     path.join('app-bundles', executable.package),
   )) {
     // The binary of an executable installed via `dart install` is located
-    // in the `bundle/bin` directory within a versioned package.
-    // Structure: <install-dir>/app-bundles/<package>/<source>/<version>/bundle/bin/<executable>
+    // in the `bundle/bin` directory within the package's app bundle.
+    // Structure: <install-dir>/app-bundles/<package>/<source>/bundle/bin/<executable>
     // Platform.resolvedExecutable is used instead of Platform.script because
     // for AOT-compiled binaries, Platform.script may not contain the actual
     // binary path (e.g. when invoked via a shell).
     packageRoot = File(Platform.resolvedExecutable).parent.parent.parent;
+    _debug('Detected dart install installation at ${packageRoot.path}.');
   } else {
     throw StateError(
       'Could not find global installation of $executable.\n'
@@ -396,11 +406,13 @@ ExecutableInstallation? _findLocalInstallation(
   Directory start,
 ) {
   if (path.equals(start.path, start.parent.path)) {
+    _debug('Reached filesystem root without finding local installation.');
     return null;
   }
 
   final pubspecFile = File(path.join(start.path, 'pubspec.yaml'));
   if (pubspecFile.existsSync()) {
+    _debug('Checking ${pubspecFile.path} for local installation.');
     final pubspecString = pubspecFile.readAsStringSync();
     String? name;
     String? resolution;
@@ -430,6 +442,10 @@ ExecutableInstallation? _findLocalInstallation(
             dependencies.containsKey(executable.package)) ||
         (devDependencies != null &&
             devDependencies.containsKey(executable.package))) {
+      _debug(
+        'Found local installation at ${start.path} '
+        '(isSelf: $isSelf, resolution: $resolution).',
+      );
       return ExecutableInstallation(
         name: executable,
         isSelf: isSelf,
@@ -573,6 +589,14 @@ Future<_ProcessOutput> _runProcess(
   );
 }
 
+final _verbose = Platform.environment['CLI_LAUNCHER_VERBOSE'] == '1';
+
+void _debug(String message) {
+  if (_verbose) {
+    stderr.writeln('[cli_launcher] $message');
+  }
+}
+
 const _launchContextMarker = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
 
 LaunchContext? _extractLaunchContext(List<String> args) {
@@ -609,10 +633,12 @@ FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
   if (launchContext != null) {
     // We are running a local installation that was launched by the global
     // installation.
+    _debug('Detected relaunch from global installation.');
 
     // We restore the working directory from which the global installation was
     // launched before launching the local installation.
     Directory.current = launchContext.directory;
+    _debug('Restored working directory to ${launchContext.directory.path}.');
 
     return config.entrypoint(args, launchContext);
   }
@@ -653,6 +679,7 @@ Future<void> _launchFromGlobalInstallation(
   if (localInstallation != null && !localInstallation._pubspecLockIsUpToDate) {
     // Ensure that dependencies are up to date so that we can resolve the
     // version of the local installation.
+    _debug('Dependencies are out of date. Running pub get.');
     await localInstallation._updateDependencies(localConfig?.pubGetArgs);
   }
 
@@ -660,6 +687,13 @@ Future<void> _launchFromGlobalInstallation(
       (localInstallation.isSelf ||
           localInstallation.isFromPath ||
           localInstallation.version != globalInstallation.version)) {
+    _debug(
+      'Launching local installation '
+      '(isSelf: ${localInstallation.isSelf}, '
+      'isFromPath: ${localInstallation.isFromPath}, '
+      'local version: ${localInstallation.version}, '
+      'global version: ${globalInstallation.version}).',
+    );
     // We found a local installation which is different from the global
     // installation so we launch the local installation, passing through
     // stdio and exit code directly.
@@ -684,5 +718,13 @@ Future<void> _launchFromGlobalInstallation(
 
   // We did not find a local installation or global and local installations have
   // the same version so we launch the global installation.
+  if (localInstallation == null) {
+    _debug('No local installation found. Launching global installation.');
+  } else {
+    _debug(
+      'Local and global versions match '
+      '(${globalInstallation.version}). Launching global installation.',
+    );
+  }
   return config.entrypoint(args, launchContext);
 }
