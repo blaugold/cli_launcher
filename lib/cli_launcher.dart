@@ -194,11 +194,11 @@ class ExecutableInstallation {
     );
     if (packageConfigFile.existsSync() &&
         !packageConfigFile.lastModifiedSync().isBefore(
-          File(path.join(packageRoot.path, 'pubspec.yaml'))
-              .lastModifiedSync(),
+          File(path.join(packageRoot.path, 'pubspec.yaml')).lastModifiedSync(),
         )) {
-      final packageConfig = jsonDecode(packageConfigFile.readAsStringSync())
-          as Map<String, Object?>;
+      final packageConfig =
+          jsonDecode(packageConfigFile.readAsStringSync())
+              as Map<String, Object?>;
       final packages = packageConfig['packages'] as List<Object?>?;
       if (packages != null) {
         return packages.any(
@@ -230,9 +230,7 @@ class ExecutableInstallation {
 
     final pubspec = lockFileRoot.path == packageRoot.path
         ? rootPubspec
-        : _parsePubspec(
-            File(path.join(packageRoot.path, 'pubspec.yaml')),
-          );
+        : _parsePubspec(File(path.join(packageRoot.path, 'pubspec.yaml')));
     return _pubspecDependsOnFlutter(pubspec);
   }
 
@@ -291,10 +289,7 @@ class ExecutableInstallation {
 }
 
 YamlMap _parsePubspec(File file) {
-  final yaml = loadYamlDocument(
-    file.readAsStringSync(),
-    sourceUrl: file.uri,
-  );
+  final yaml = loadYamlDocument(file.readAsStringSync(), sourceUrl: file.uri);
   return yaml.contents as YamlMap;
 }
 
