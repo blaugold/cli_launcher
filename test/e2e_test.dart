@@ -277,6 +277,7 @@ void main() {
         forcePubGet: true,
       );
 
+      expect(stderr, contains('pubspec.lock does not exist.'));
       expect(
         stderr,
         contains('[cli_launcher] Dependencies are out of date. Running pub get.'),
@@ -296,6 +297,7 @@ void main() {
         workingDirectory: workingDirectory,
       );
 
+      expect(stderr, contains('Dependencies are out of date.'));
       expect(
         stderr,
         contains('[cli_launcher] Dependencies are out of date. Running pub get.'),

@@ -238,12 +238,19 @@ class ExecutableInstallation {
     final pubspecFile = File(path.join(packageRoot.path, 'pubspec.yaml'));
     final pubspecLockFile = File(path.join(lockFileRoot.path, 'pubspec.lock'));
     if (!pubspecLockFile.existsSync()) {
+      _debug('${_relativePath(pubspecLockFile.path)} does not exist.');
       return false;
     }
 
-    return !pubspecLockFile.lastModifiedSync().isBefore(
-      pubspecFile.lastModifiedSync(),
+    final pubspecModified = pubspecFile.lastModifiedSync();
+    final lockModified = pubspecLockFile.lastModifiedSync();
+    final upToDate = !lockModified.isBefore(pubspecModified);
+    _debug(
+      '${_relativePath(pubspecFile.path)} modified at ${pubspecModified.toIso8601String()}, '
+      '${_relativePath(pubspecLockFile.path)} modified at ${lockModified.toIso8601String()}. '
+      'Dependencies are ${upToDate ? 'up to date' : 'out of date'}.',
     );
+    return upToDate;
   }
 
   Future<void> _updateDependencies([List<String>? pubGetArgs]) async {
@@ -317,7 +324,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // is located in the `bin` directory in a generated package.
     // This package is located in `<pub-cache>/global_packages/<package>`.
     packageRoot = File(scriptPath).parent.parent;
-    _debug('Detected pub cache global installation at ${packageRoot.path}.');
+    _debug('Detected pub cache global installation at ${_relativePath(packageRoot.path)}.');
   } else if (scriptPath.contains(
     path.join('.dart_tool', 'pub', 'bin', executable.package),
   )) {
@@ -327,9 +334,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     );
     packageRoot = root;
     lockFileRootOverride = lockFileRoot;
-    _debug('Detected path-activated installation at ${packageRoot.path}.');
+    _debug('Detected path-activated installation at ${_relativePath(packageRoot.path)}.');
     if (lockFileRootOverride != null) {
-      _debug('Lock file root: ${lockFileRootOverride.path}');
+      _debug('Lock file root: ${_relativePath(lockFileRootOverride.path)}');
     }
   } else if (Platform.resolvedExecutable.contains(
     path.join('app-bundles', executable.package),
@@ -341,7 +348,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     // for AOT-compiled binaries, Platform.script may not contain the actual
     // binary path (e.g. when invoked via a shell).
     packageRoot = File(Platform.resolvedExecutable).parent.parent.parent;
-    _debug('Detected dart install installation at ${packageRoot.path}.');
+    _debug('Detected dart install installation at ${_relativePath(packageRoot.path)}.');
   } else {
     throw StateError(
       'Could not find global installation of $executable.\n'
@@ -412,7 +419,7 @@ ExecutableInstallation? _findLocalInstallation(
 
   final pubspecFile = File(path.join(start.path, 'pubspec.yaml'));
   if (pubspecFile.existsSync()) {
-    _debug('Checking ${pubspecFile.path} for local installation.');
+    _debug('Checking ${_relativePath(pubspecFile.path)} for local installation.');
     final pubspecString = pubspecFile.readAsStringSync();
     String? name;
     String? resolution;
@@ -443,7 +450,7 @@ ExecutableInstallation? _findLocalInstallation(
         (devDependencies != null &&
             devDependencies.containsKey(executable.package))) {
       _debug(
-        'Found local installation at ${start.path} '
+        'Found local installation at ${_relativePath(start.path)} '
         '(isSelf: $isSelf, resolution: $resolution).',
       );
       return ExecutableInstallation(
@@ -597,6 +604,18 @@ void _debug(String message) {
   }
 }
 
+/// Returns [filePath] relative to the current working directory, or the
+/// absolute path if it is not under the current working directory.
+String _relativePath(String filePath) {
+  final relative = path.relative(filePath);
+  // If the relative path starts with too many `..` segments, the absolute
+  // path is more readable.
+  if (relative.startsWith('..${path.separator}..${path.separator}..')) {
+    return filePath;
+  }
+  return relative;
+}
+
 const _launchContextMarker = 'CLI_LAUNCHER_LAUNCH_CONTEXT';
 
 LaunchContext? _extractLaunchContext(List<String> args) {
@@ -628,6 +647,7 @@ LaunchContext? _extractLaunchContext(List<String> args) {
 /// }
 /// ```
 FutureOr<void> launchExecutable(List<String> args, LaunchConfig config) async {
+  _debug('Working directory: ${Directory.current.path}');
   args = args.toList(); // Make a mutable copy of the arguments.
   final launchContext = _extractLaunchContext(args);
   if (launchContext != null) {
