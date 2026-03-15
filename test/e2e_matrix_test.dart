@@ -223,9 +223,6 @@ void main() {
               isNot(contains('Dependencies are out of date. Running pub get.')),
             );
           },
-          // On Windows, `dart run` triggers auto-resolution for path
-          // dependencies regardless of timestamps.
-          skip: Platform.isWindows,
         );
 
         // --- Different version: v2 consumer depends on v2 CLI ---
