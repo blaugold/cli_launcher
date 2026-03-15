@@ -33,7 +33,8 @@ void main() {
     for (final structure in PackageStructure.values) {
       final groupName = '${installMethod.name}, ${structure.name}';
       // Use unique names per group to avoid global activation conflicts.
-      final packageName = 'cli_launcher_matrix_'
+      final packageName =
+          'cli_launcher_matrix_'
           '${_snakeCase(installMethod.name)}_${_snakeCase(structure.name)}';
       final executableName =
           'matrix_${_snakeCase(installMethod.name)}_${_snakeCase(structure.name)}';
@@ -119,9 +120,7 @@ void main() {
           final subDir = p.join(fixture!.consumerDir, 'sub');
           Directory(subDir).createSync(recursive: true);
 
-          final (:stdout, :stderr) = fixture!.runCli(
-            workingDirectory: subDir,
-          );
+          final (:stdout, :stderr) = fixture!.runCli(workingDirectory: subDir);
           expect(stdout, contains('local=1.0.0'));
           expect(stdout, contains('global=1.0.0'));
           expect(stderr, contains('isSelf: false'));
@@ -165,7 +164,8 @@ void main() {
               }
             }
           },
-          skip: installMethod == InstallMethod.pathActivated &&
+          skip:
+              installMethod == InstallMethod.pathActivated &&
                   structure != PackageStructure.standalone
               ? 'path-activated workspace shares lock file with global CLI'
               : null,
@@ -178,14 +178,16 @@ void main() {
           () {
             final lockFileDir =
                 fixture!.workspaceRootDir ?? fixture!.consumerDir;
-            final pubspecFile =
-                File(p.join(fixture!.consumerDir, 'pubspec.yaml'));
+            final pubspecFile = File(
+              p.join(fixture!.consumerDir, 'pubspec.yaml'),
+            );
             final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
 
             final now = DateTime.now();
             pubspecFile.setLastModifiedSync(now);
-            lockFile
-                .setLastModifiedSync(now.subtract(const Duration(hours: 1)));
+            lockFile.setLastModifiedSync(
+              now.subtract(const Duration(hours: 1)),
+            );
 
             final (:stdout, :stderr) = fixture!.runCli(
               workingDirectory: fixture!.consumerDir,
@@ -198,7 +200,8 @@ void main() {
               contains('Dependencies are out of date. Running pub get.'),
             );
           },
-          skip: installMethod == InstallMethod.pathActivated &&
+          skip:
+              installMethod == InstallMethod.pathActivated &&
                   structure != PackageStructure.standalone
               ? 'path-activated workspace shares lock file with global CLI'
               : null,
@@ -323,9 +326,7 @@ class _Fixture {
     required String packageName,
     required String executableName,
   }) async {
-    final tempDir = Directory.systemTemp.createTempSync(
-      'cli_launcher_matrix_',
-    );
+    final tempDir = Directory.systemTemp.createTempSync('cli_launcher_matrix_');
 
     try {
       switch (structure) {
@@ -450,8 +451,11 @@ class _Fixture {
     Directory(workspaceDir).createSync();
     final cliDir = p.join(workspaceDir, 'packages', 'cli_package');
     final consumerDir = p.join(workspaceDir, 'packages', 'consumer');
-    final devDepConsumerDir =
-        p.join(workspaceDir, 'packages', 'dev_dep_consumer');
+    final devDepConsumerDir = p.join(
+      workspaceDir,
+      'packages',
+      'dev_dep_consumer',
+    );
     final emptyDir = p.join(workspaceDir, 'empty');
 
     // v2 packages live outside the workspace to avoid name conflicts.
@@ -563,8 +567,9 @@ ${workspaceMembers.map((m) => '  - $m').join('\n')}
     Directory(p.join(dir, 'bin')).createSync(recursive: true);
     Directory(p.join(dir, 'lib')).createSync(recursive: true);
 
-    final resolutionLine =
-        resolution != null ? 'resolution: $resolution\n' : '';
+    final resolutionLine = resolution != null
+        ? 'resolution: $resolution\n'
+        : '';
 
     File(p.join(dir, 'pubspec.yaml')).writeAsStringSync('''
 name: $packageName
@@ -620,8 +625,9 @@ void main(List<String> args) {
   }) {
     Directory(dir).createSync(recursive: true);
 
-    final resolutionLine =
-        resolution != null ? 'resolution: $resolution\n' : '';
+    final resolutionLine = resolution != null
+        ? 'resolution: $resolution\n'
+        : '';
 
     final depsSection = devDependency
         ? '''
@@ -672,24 +678,23 @@ void main() {}
     switch (installMethod) {
       case InstallMethod.pathActivated:
         if (workspaceDir != null) {
-          _runSync(
-            'dart',
-            [
-              'pub',
-              'global',
-              'activate',
-              '--source',
-              'path',
-              p.relative(cliDir, from: workspaceDir),
-            ],
-            workingDirectory: workspaceDir,
-          );
+          _runSync('dart', [
+            'pub',
+            'global',
+            'activate',
+            '--source',
+            'path',
+            p.relative(cliDir, from: workspaceDir),
+          ], workingDirectory: workspaceDir);
         } else {
-          _runSync(
-            'dart',
-            ['pub', 'global', 'activate', '--source', 'path', '.'],
-            workingDirectory: cliDir,
-          );
+          _runSync('dart', [
+            'pub',
+            'global',
+            'activate',
+            '--source',
+            'path',
+            '.',
+          ], workingDirectory: cliDir);
         }
         return null;
 
@@ -699,6 +704,7 @@ void main() {}
           ['install', cliDir],
           stdoutEncoding: utf8,
           stderrEncoding: utf8,
+          runInShell: Platform.isWindows,
         );
         if (result.exitCode != 0) {
           throw Exception(
@@ -717,8 +723,9 @@ void main() {}
             '$stdout',
           );
         }
-        final installedPath =
-            installedLine.replaceFirst('Installed: ', '').trim();
+        final installedPath = installedLine
+            .replaceFirst('Installed: ', '')
+            .trim();
         return File(installedPath).parent.path;
     }
   }
@@ -729,7 +736,8 @@ void main() {}
   }) {
     final env = {...Platform.environment, 'CLI_LAUNCHER_VERBOSE': '1'};
     if (installedBinDir != null) {
-      env['PATH'] = '$installedBinDir:${env['PATH']}';
+      final pathSeparator = Platform.isWindows ? ';' : ':';
+      env['PATH'] = '$installedBinDir$pathSeparator${env['PATH']}';
     }
 
     final result = Process.runSync(
@@ -755,12 +763,17 @@ void main() {}
   void dispose() {
     switch (installMethod) {
       case InstallMethod.pathActivated:
-        Process.runSync(
-          'dart',
-          ['pub', 'global', 'deactivate', packageName],
-        );
+        Process.runSync('dart', [
+          'pub',
+          'global',
+          'deactivate',
+          packageName,
+        ], runInShell: Platform.isWindows);
       case InstallMethod.dartInstall:
-        Process.runSync('dart', ['uninstall', packageName]);
+        Process.runSync('dart', [
+          'uninstall',
+          packageName,
+        ], runInShell: Platform.isWindows);
     }
     Directory(tempDir).deleteSync(recursive: true);
   }
@@ -776,6 +789,9 @@ void main() {}
       workingDirectory: workingDirectory,
       stdoutEncoding: utf8,
       stderrEncoding: utf8,
+      // Necessary so that `dart.bat`/`flutter.bat` wrappers can be found on
+      // Windows.
+      runInShell: Platform.isWindows,
     );
     if (result.exitCode != 0) {
       throw Exception(
