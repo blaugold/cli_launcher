@@ -1,4 +1,4 @@
-@Timeout(Duration(minutes: 5))
+@Timeout(Duration(minutes: 10))
 library;
 
 import 'dart:convert';
@@ -12,7 +12,7 @@ final _cliLauncherRoot = p.normalize(p.absolute(Directory.current.path));
 
 enum InstallMethod { pathActivated, dartInstall }
 
-enum PackageStructure { standalone, workspaceMember }
+enum PackageStructure { standalone, workspaceMember, flutterWorkspaceMember }
 
 String _snakeCase(String camelCase) {
   return camelCase.replaceAllMapped(
@@ -20,6 +20,13 @@ String _snakeCase(String camelCase) {
     (m) => '_${m[0]!.toLowerCase()}',
   );
 }
+
+// Note: The following scenarios cannot easily be tested in e2e:
+//
+// - `dart pub global activate` from pub cache (requires publishing to pub.dev)
+// - Hosted dependency (non-path) in consumer (requires publishing to pub.dev)
+// - "Same version → launch global" for consumers (path deps always have
+//   isFromPath=true, so local is always launched regardless of version)
 
 void main() {
   for (final installMethod in InstallMethod.values) {
@@ -47,6 +54,8 @@ void main() {
           fixture?.dispose();
         });
 
+        // --- No local installation ---
+
         test('no local installation', () {
           final (:stdout, :stderr) = fixture!.runCli(
             workingDirectory: fixture!.emptyDir,
@@ -56,11 +65,10 @@ void main() {
           expect(stderr, contains('No local installation found'));
         });
 
-        test('launches from self', () {
-          _ensureUpToDateTimestamps(fixture!.cliPackageDir);
-          if (fixture!.workspaceRootDir != null) {
-            _ensureUpToDateTimestamps(fixture!.workspaceRootDir!);
-          }
+        // --- isSelf: running from the source package ---
+
+        test('launches from self (isSelf)', () {
+          fixture!.ensureUpToDateTimestamps();
 
           final (:stdout, :stderr) = fixture!.runCli(
             workingDirectory: fixture!.cliPackageDir,
@@ -69,16 +77,16 @@ void main() {
           expect(stdout, contains('global=1.0.0'));
           expect(stderr, contains('isSelf: true'));
           expect(stderr, contains('Launching local installation'));
-          if (structure == PackageStructure.workspaceMember) {
+          if (structure == PackageStructure.workspaceMember ||
+              structure == PackageStructure.flutterWorkspaceMember) {
             expect(stderr, contains('resolution: workspace'));
           }
         });
 
-        test('launches from consumer', () {
-          _ensureUpToDateTimestamps(fixture!.consumerDir);
-          if (fixture!.workspaceRootDir != null) {
-            _ensureUpToDateTimestamps(fixture!.workspaceRootDir!);
-          }
+        // --- Consumer with dependency ---
+
+        test('launches from consumer (dependency)', () {
+          fixture!.ensureUpToDateTimestamps();
 
           final (:stdout, :stderr) = fixture!.runCli(
             workingDirectory: fixture!.consumerDir,
@@ -86,6 +94,148 @@ void main() {
           expect(stdout, contains('local=1.0.0'));
           expect(stdout, contains('global=1.0.0'));
           expect(stderr, contains('isSelf: false'));
+          expect(stderr, contains('Launching local installation'));
+        });
+
+        // --- Consumer with dev_dependency ---
+
+        test('launches from dev_dependency consumer', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.devDepConsumerDir,
+          );
+          expect(stdout, contains('local=1.0.0'));
+          expect(stdout, contains('global=1.0.0'));
+          expect(stderr, contains('isSelf: false'));
+          expect(stderr, contains('Launching local installation'));
+        });
+
+        // --- Consumer from sub-directory ---
+
+        test('launches from sub-directory of consumer', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final subDir = p.join(fixture!.consumerDir, 'sub');
+          Directory(subDir).createSync(recursive: true);
+
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: subDir,
+          );
+          expect(stdout, contains('local=1.0.0'));
+          expect(stdout, contains('global=1.0.0'));
+          expect(stderr, contains('isSelf: false'));
+          expect(stderr, contains('Launching local installation'));
+        });
+
+        // --- Dependency freshness: pubspec.lock missing ---
+        //
+        // For path-activated workspace packages, the workspace lock file is
+        // shared between the global and local installations. Deleting it
+        // breaks the global CLI itself.
+
+        test(
+          'pubspec.lock missing triggers pub get',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final hadLock = lockFile.existsSync();
+            String? lockContents;
+            if (hadLock) {
+              lockContents = lockFile.readAsStringSync();
+              lockFile.deleteSync();
+            }
+
+            try {
+              final (:stdout, :stderr) = fixture!.runCli(
+                workingDirectory: fixture!.consumerDir,
+              );
+              expect(stdout, contains('local=1.0.0'));
+              expect(stdout, contains('global=1.0.0'));
+              expect(stderr, contains('does not exist'));
+              expect(
+                stderr,
+                contains('Dependencies are out of date. Running pub get.'),
+              );
+            } finally {
+              if (hadLock) {
+                lockFile.writeAsStringSync(lockContents!);
+              }
+            }
+          },
+          skip: installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
+        // --- Dependency freshness: pubspec.lock older than pubspec.yaml ---
+
+        test(
+          'pubspec.lock older than pubspec.yaml triggers pub get',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final pubspecFile =
+                File(p.join(fixture!.consumerDir, 'pubspec.yaml'));
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final now = DateTime.now();
+            pubspecFile.setLastModifiedSync(now);
+            lockFile
+                .setLastModifiedSync(now.subtract(const Duration(hours: 1)));
+
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.consumerDir,
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(stdout, contains('global=1.0.0'));
+            expect(stderr, contains('Dependencies are out of date'));
+            expect(
+              stderr,
+              contains('Dependencies are out of date. Running pub get.'),
+            );
+          },
+          skip: installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
+        // --- Dependency freshness: up to date ---
+
+        test(
+          'up to date pubspec.lock does not trigger pub get',
+          () {
+            fixture!.ensureUpToDateTimestamps();
+
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.consumerDir,
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(
+              stderr,
+              isNot(contains('Dependencies are out of date. Running pub get.')),
+            );
+          },
+          // On Windows, `dart run` triggers auto-resolution for path
+          // dependencies regardless of timestamps.
+          skip: Platform.isWindows,
+        );
+
+        // --- Different version: v2 consumer depends on v2 CLI ---
+
+        test('different version consumer launches local', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.v2ConsumerDir,
+          );
+          // The v2 consumer depends on the v2 CLI package.
+          expect(stdout, contains('local=2.0.0'));
+          expect(stdout, contains('global=1.0.0'));
           expect(stderr, contains('Launching local installation'));
         });
       });
@@ -117,6 +267,9 @@ class _Fixture {
     required this.tempDir,
     required this.cliPackageDir,
     required this.consumerDir,
+    required this.devDepConsumerDir,
+    required this.v2CliPackageDir,
+    required this.v2ConsumerDir,
     required this.emptyDir,
     required this.executableName,
     required this.packageName,
@@ -128,12 +281,27 @@ class _Fixture {
   final String tempDir;
   final String cliPackageDir;
   final String consumerDir;
+  final String devDepConsumerDir;
+  final String v2CliPackageDir;
+  final String v2ConsumerDir;
   final String emptyDir;
   final String? workspaceRootDir;
   final String executableName;
   final String packageName;
   final InstallMethod installMethod;
   final String? installedBinDir;
+
+  /// Ensures timestamps are up to date for all relevant directories.
+  void ensureUpToDateTimestamps() {
+    _ensureUpToDateTimestamps(cliPackageDir);
+    _ensureUpToDateTimestamps(consumerDir);
+    _ensureUpToDateTimestamps(devDepConsumerDir);
+    _ensureUpToDateTimestamps(v2CliPackageDir);
+    _ensureUpToDateTimestamps(v2ConsumerDir);
+    if (workspaceRootDir != null) {
+      _ensureUpToDateTimestamps(workspaceRootDir!);
+    }
+  }
 
   static Future<_Fixture> create({
     required InstallMethod installMethod,
@@ -160,6 +328,15 @@ class _Fixture {
             installMethod: installMethod,
             packageName: packageName,
             executableName: executableName,
+            flutter: false,
+          );
+        case PackageStructure.flutterWorkspaceMember:
+          return await _createWorkspace(
+            tempDir: tempDir,
+            installMethod: installMethod,
+            packageName: packageName,
+            executableName: executableName,
+            flutter: true,
           );
       }
     } catch (e) {
@@ -176,6 +353,9 @@ class _Fixture {
   }) async {
     final cliDir = p.join(tempDir.path, 'cli_package');
     final consumerDir = p.join(tempDir.path, 'consumer');
+    final devDepConsumerDir = p.join(tempDir.path, 'dev_dep_consumer');
+    final v2CliDir = p.join(tempDir.path, 'cli_package_v2');
+    final v2ConsumerDir = p.join(tempDir.path, 'consumer_v2');
     final emptyDir = p.join(tempDir.path, 'empty');
 
     _createCliPackage(
@@ -184,19 +364,46 @@ class _Fixture {
       executableName: executableName,
     );
 
+    _createCliPackage(
+      dir: v2CliDir,
+      packageName: packageName,
+      executableName: executableName,
+      version: '2.0.0',
+    );
+
     _createConsumerPackage(
       dir: consumerDir,
       cliPackageName: packageName,
       cliPackagePath: '../cli_package',
+      devDependency: false,
+    );
+
+    _createConsumerPackage(
+      dir: devDepConsumerDir,
+      cliPackageName: packageName,
+      cliPackagePath: '../cli_package',
+      devDependency: true,
+      consumerName: 'matrix_test_dev_dep_consumer',
+    );
+
+    _createConsumerPackage(
+      dir: v2ConsumerDir,
+      cliPackageName: packageName,
+      cliPackagePath: '../cli_package_v2',
+      devDependency: false,
+      consumerName: 'matrix_test_v2_consumer',
     );
 
     Directory(emptyDir).createSync();
 
     // Resolve dependencies.
     _runSync('dart', ['pub', 'get'], workingDirectory: cliDir);
+    _runSync('dart', ['pub', 'get'], workingDirectory: v2CliDir);
     _runSync('dart', ['pub', 'get'], workingDirectory: consumerDir);
+    _runSync('dart', ['pub', 'get'], workingDirectory: devDepConsumerDir);
+    _runSync('dart', ['pub', 'get'], workingDirectory: v2ConsumerDir);
 
-    // Install globally.
+    // Install globally (v1).
     final installedBinDir = _install(
       installMethod: installMethod,
       packageName: packageName,
@@ -207,6 +414,9 @@ class _Fixture {
       tempDir: tempDir.path,
       cliPackageDir: cliDir,
       consumerDir: consumerDir,
+      devDepConsumerDir: devDepConsumerDir,
+      v2CliPackageDir: v2CliDir,
+      v2ConsumerDir: v2ConsumerDir,
       emptyDir: emptyDir,
       executableName: executableName,
       packageName: packageName,
@@ -220,20 +430,34 @@ class _Fixture {
     required InstallMethod installMethod,
     required String packageName,
     required String executableName,
+    required bool flutter,
   }) async {
-    final workspaceDir = tempDir.path;
+    final workspaceDir = p.join(tempDir.path, 'workspace');
+    Directory(workspaceDir).createSync();
     final cliDir = p.join(workspaceDir, 'packages', 'cli_package');
     final consumerDir = p.join(workspaceDir, 'packages', 'consumer');
+    final devDepConsumerDir =
+        p.join(workspaceDir, 'packages', 'dev_dep_consumer');
     final emptyDir = p.join(workspaceDir, 'empty');
 
+    // v2 packages live outside the workspace to avoid name conflicts.
+    final v2CliDir = p.join(tempDir.path, 'cli_package_v2');
+    final v2ConsumerDir = p.join(tempDir.path, 'consumer_v2');
+
     // Create workspace root pubspec.
+    final workspaceMembers = [
+      'packages/cli_package',
+      'packages/consumer',
+      'packages/dev_dep_consumer',
+      if (flutter) 'packages/flutter_package',
+    ];
+
     File(p.join(workspaceDir, 'pubspec.yaml')).writeAsStringSync('''
 name: matrix_workspace
 environment:
   sdk: ^3.8.0
 workspace:
-  - packages/cli_package
-  - packages/consumer
+${workspaceMembers.map((m) => '  - $m').join('\n')}
 ''');
 
     _createCliPackage(
@@ -248,14 +472,50 @@ workspace:
       cliPackageName: packageName,
       cliPackagePath: '../cli_package',
       resolution: 'workspace',
+      devDependency: false,
     );
+
+    _createConsumerPackage(
+      dir: devDepConsumerDir,
+      cliPackageName: packageName,
+      cliPackagePath: '../cli_package',
+      resolution: 'workspace',
+      devDependency: true,
+      consumerName: 'matrix_test_dev_dep_consumer',
+    );
+
+    if (flutter) {
+      _createFlutterPackage(
+        dir: p.join(workspaceDir, 'packages', 'flutter_package'),
+      );
+    }
 
     Directory(emptyDir).createSync();
 
-    // Resolve dependencies from workspace root.
-    _runSync('dart', ['pub', 'get'], workingDirectory: workspaceDir);
+    // Resolve workspace dependencies.
+    final pubCommand = flutter ? 'flutter' : 'dart';
+    _runSync(pubCommand, ['pub', 'get'], workingDirectory: workspaceDir);
 
-    // Install globally.
+    // Create v2 packages outside the workspace (standalone).
+    _createCliPackage(
+      dir: v2CliDir,
+      packageName: packageName,
+      executableName: executableName,
+      version: '2.0.0',
+    );
+
+    _createConsumerPackage(
+      dir: v2ConsumerDir,
+      cliPackageName: packageName,
+      cliPackagePath: '../cli_package_v2',
+      devDependency: false,
+      consumerName: 'matrix_test_v2_consumer',
+    );
+
+    _runSync('dart', ['pub', 'get'], workingDirectory: v2CliDir);
+    _runSync('dart', ['pub', 'get'], workingDirectory: v2ConsumerDir);
+
+    // Install globally (v1).
     final installedBinDir = _install(
       installMethod: installMethod,
       packageName: packageName,
@@ -267,6 +527,9 @@ workspace:
       tempDir: tempDir.path,
       cliPackageDir: cliDir,
       consumerDir: consumerDir,
+      devDepConsumerDir: devDepConsumerDir,
+      v2CliPackageDir: v2CliDir,
+      v2ConsumerDir: v2ConsumerDir,
       emptyDir: emptyDir,
       workspaceRootDir: workspaceDir,
       executableName: executableName,
@@ -280,16 +543,18 @@ workspace:
     required String dir,
     required String packageName,
     required String executableName,
+    String version = '1.0.0',
     String? resolution,
   }) {
     Directory(p.join(dir, 'bin')).createSync(recursive: true);
     Directory(p.join(dir, 'lib')).createSync(recursive: true);
 
-    final resolutionLine = resolution != null ? 'resolution: $resolution\n' : '';
+    final resolutionLine =
+        resolution != null ? 'resolution: $resolution\n' : '';
 
     File(p.join(dir, 'pubspec.yaml')).writeAsStringSync('''
 name: $packageName
-version: 1.0.0
+version: $version
 ${resolutionLine}environment:
   sdk: ^3.8.0
 dependencies:
@@ -323,20 +588,50 @@ void main(List<String> args) {
     required String dir,
     required String cliPackageName,
     required String cliPackagePath,
+    required bool devDependency,
     String? resolution,
+    String consumerName = 'matrix_test_consumer',
   }) {
     Directory(dir).createSync(recursive: true);
 
-    final resolutionLine = resolution != null ? 'resolution: $resolution\n' : '';
+    final resolutionLine =
+        resolution != null ? 'resolution: $resolution\n' : '';
+
+    final depsSection = devDependency
+        ? '''
+dev_dependencies:
+  $cliPackageName:
+    path: $cliPackagePath'''
+        : '''
+dependencies:
+  $cliPackageName:
+    path: $cliPackagePath''';
 
     File(p.join(dir, 'pubspec.yaml')).writeAsStringSync('''
-name: matrix_test_consumer
+name: $consumerName
 version: 1.0.0
 ${resolutionLine}environment:
   sdk: ^3.8.0
+$depsSection
+''');
+  }
+
+  static void _createFlutterPackage({required String dir}) {
+    Directory(p.join(dir, 'lib')).createSync(recursive: true);
+
+    File(p.join(dir, 'pubspec.yaml')).writeAsStringSync('''
+name: matrix_flutter_package
+version: 1.0.0
+resolution: workspace
+environment:
+  sdk: ^3.8.0
 dependencies:
-  $cliPackageName:
-    path: $cliPackagePath
+  flutter:
+    sdk: flutter
+''');
+
+    File(p.join(dir, 'lib', 'main.dart')).writeAsStringSync('''
+void main() {}
 ''');
   }
 
