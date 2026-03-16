@@ -319,7 +319,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   Directory? lockFileRootOverride;
 
   final scriptPath = Platform.script.toFilePath();
-  if (scriptPath.contains(path.join('global_packages', executable.package))) {
+  if (scriptPath.contains(
+    path.join('global_packages', executable.package) + path.separator,
+  )) {
     // The snapshot of an executable that is globally installed in the pub cache
     // is located in the `bin` directory in a generated package.
     // This package is located in `<pub-cache>/global_packages/<package>`.
@@ -328,7 +330,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
       'Detected pub cache global installation at ${_relativePath(packageRoot.path)}.',
     );
   } else if (scriptPath.contains(
-    path.join('.dart_tool', 'pub', 'bin', executable.package),
+    path.join('.dart_tool', 'pub', 'bin', executable.package) + path.separator,
   )) {
     final (:root, :lockFileRoot) = _findPathActivatedPackageRoot(
       scriptPath,
@@ -465,9 +467,7 @@ ExecutableInstallation? _findLocalInstallation(
       if (workspace != null && !isSelf) {
         for (final entry in workspace) {
           final memberPath = path.join(start.path, entry as String);
-          final memberPubspecFile = File(
-            path.join(memberPath, 'pubspec.yaml'),
-          );
+          final memberPubspecFile = File(path.join(memberPath, 'pubspec.yaml'));
           if (memberPubspecFile.existsSync()) {
             final memberPubspecString = memberPubspecFile.readAsStringSync();
             final memberPubspecYaml = loadYamlDocument(
@@ -487,7 +487,8 @@ ExecutableInstallation? _findLocalInstallation(
           }
         }
       } else if (resolution == 'workspace') {
-        lockFileRoot = _findWorkspaceRoot(start) ??
+        lockFileRoot =
+            _findWorkspaceRoot(start) ??
             (throw StateError(
               'Could not find workspace root for package at '
               '${start.path}. The pubspec.yaml has '
