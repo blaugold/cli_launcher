@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## 2026-03-16
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
+ - [`cli_launcher` - `v0.3.3`](#cli_launcher---v033)
+
+---
+
+#### `cli_launcher` - `v0.3.3`
+
+ - **FEAT**: Flutter workspace support, comprehensive e2e matrix tests, and CI cleanup ([#22](https://github.com/blaugold/cli_launcher/issues/22)). ([119e7e1f](https://github.com/blaugold/cli_launcher/commit/119e7e1f4d24c4a3c8ef2f922d745225e945b122))
+
+## 0.3.3
+
+ - **FEAT**: Flutter workspace support, comprehensive e2e matrix tests, and CI cleanup ([#22](https://github.com/blaugold/cli_launcher/issues/22)). ([119e7e1f](https://github.com/blaugold/cli_launcher/commit/119e7e1f4d24c4a3c8ef2f922d745225e945b122))
+
+
 ## 2026-03-14
 
 ### Changes
