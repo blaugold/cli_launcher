@@ -112,6 +112,29 @@ void main() {
           expect(stderr, contains('Launching local installation'));
         });
 
+        // --- Running from workspace root ---
+
+        test(
+          'launches from workspace root with cli as dev_dependency',
+          () {
+            if (fixture!.workspaceRootDir == null) {
+              return;
+            }
+            fixture!.ensureUpToDateTimestamps();
+
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.workspaceRootDir!,
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(stdout, contains('global=1.0.0'));
+            expect(stderr, contains('Resolved workspace member'));
+            expect(stderr, contains('Launching local installation'));
+          },
+          skip: structure == PackageStructure.standalone
+              ? 'standalone has no workspace root'
+              : null,
+        );
+
         // --- Consumer from sub-directory ---
 
         test('launches from sub-directory of consumer', () {
@@ -450,7 +473,9 @@ class _Fixture {
       'packages',
       'dev_dep_consumer',
     );
-    final emptyDir = p.join(workspaceDir, 'empty');
+    // Empty dir must be outside the workspace so that the "no local
+    // installation" test doesn't find the workspace root's dev_dependency.
+    final emptyDir = p.join(tempDir.path, 'empty');
 
     // v2 packages live outside the workspace to avoid name conflicts.
     final v2CliDir = p.join(tempDir.path, 'cli_package_v2');
@@ -464,12 +489,18 @@ class _Fixture {
       if (flutter) 'packages/flutter_package',
     ];
 
+    // The workspace root lists the CLI package as a dev_dependency (like the
+    // melos repo does for itself) to test that running from the workspace root
+    // correctly resolves the workspace member as the package root.
     File(p.join(workspaceDir, 'pubspec.yaml')).writeAsStringSync('''
 name: matrix_workspace
 environment:
   sdk: ^3.8.0
 workspace:
 ${workspaceMembers.map((m) => '  - $m').join('\n')}
+dev_dependencies:
+  $packageName:
+    path: packages/cli_package
 ''');
 
     _createCliPackage(
