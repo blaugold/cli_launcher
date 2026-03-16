@@ -26,25 +26,25 @@ for development.
 ```mermaid
 flowchart TD
     A["User invokes CLI"] --> B["launchExecutable()"]
-    B --> C{"Launch context\nin args?"}
+    B --> C{"Launch context<br/>in args?"}
 
-    C -- "Yes (relaunched by global)" --> D["Restore original working\ndirectory, call entrypoint"]
-    C -- "No (initial invocation)" --> E["Detect global installation\nfrom Platform.script"]
+    C -- "Yes (relaunched by global)" --> D["Restore original working<br/>directory, call entrypoint"]
+    C -- "No (initial invocation)" --> E["Detect global installation<br/>from Platform.script"]
 
-    E --> F["Search for local installation\n(walk up from cwd, check pubspec.yaml\nfor dependency or dev_dependency)"]
+    E --> F["Search for local installation<br/>(walk up from cwd, check pubspec.yaml<br/>for dependency or dev_dependency)"]
 
-    F -- "Found" --> G{"pubspec.lock\nup to date?"}
+    F -- "Found" --> G{"pubspec.lock<br/>up to date?"}
     F -- "Not found" --> GLOBAL
 
     G -- "Yes" --> I
-    G -- "Missing or\nolder than\npubspec.yaml" --> H["Run pub get from\nlock file root"]
+    G -- "Missing or<br/>older than<br/>pubspec.yaml" --> H["Run pub get from<br/>lock file root"]
 
-    H -- "OK" --> I{"Source package,\npath dep, or\nversion mismatch?"}
+    H -- "OK" --> I{"Source package,<br/>path dep, or<br/>version mismatch?"}
     H -- "Failed" --> EXIT["Exit with error"]
 
-    I -- "No" --> GLOBAL["Run entrypoint\nwith global installation"]
-    I -- "Yes" --> J["Launch local via\ndart run package:executable\n(inject launch context in args)"]
+    I -- "No" --> GLOBAL["Run entrypoint<br/>with global installation"]
+    I -- "Yes" --> J["Launch local via<br/>dart run package:executable<br/>(inject launch context in args)"]
 
-    J --> K["New process starts,\ncalls launchExecutable(),\nfinds launch context in args"]
+    J --> K["New process starts,<br/>calls launchExecutable(),<br/>finds launch context in args"]
     K --> D
 ```
