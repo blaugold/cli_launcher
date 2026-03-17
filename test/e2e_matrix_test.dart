@@ -112,6 +112,29 @@ void main() {
           expect(stderr, contains('Launching local installation'));
         });
 
+        // --- Running from workspace root ---
+
+        test(
+          'launches from workspace root with cli as dev_dependency',
+          () {
+            if (fixture!.workspaceRootDir == null) {
+              return;
+            }
+            fixture!.ensureUpToDateTimestamps();
+
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.workspaceRootDir!,
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(stdout, contains('global=1.0.0'));
+            expect(stderr, contains('Resolved workspace member'));
+            expect(stderr, contains('Launching local installation'));
+          },
+          skip: structure == PackageStructure.standalone
+              ? 'standalone has no workspace root'
+              : null,
+        );
+
         // --- Consumer from sub-directory ---
 
         test('launches from sub-directory of consumer', () {
@@ -251,6 +274,200 @@ void main() {
         });
       });
     }
+  }
+
+  // Tests activating a workspace member CLI package directly from the
+  // workspace root, where the workspace root has the CLI as a dev_dependency.
+  group('workspace member activated from workspace root', () {
+    _WorkspaceRootActivationFixture? fixture;
+
+    setUpAll(() async {
+      fixture = await _WorkspaceRootActivationFixture.create();
+    });
+
+    tearDownAll(() {
+      fixture?.dispose();
+    });
+
+    test('launches correctly from empty directory', () {
+      final (:stdout, :stderr) = fixture!.runCli(
+        workingDirectory: fixture!.emptyDir,
+      );
+      expect(stdout, contains('local=null'));
+      expect(stdout, contains('global=1.0.0'));
+      expect(stderr, contains('No local installation found'));
+    });
+
+    test('launches correctly from workspace root', () {
+      fixture!.ensureUpToDateTimestamps();
+
+      final (:stdout, :stderr) = fixture!.runCli(
+        workingDirectory: fixture!.workspaceRootDir,
+      );
+      expect(stdout, contains('local=1.0.0'));
+      expect(stdout, contains('global=1.0.0'));
+      expect(stderr, contains('Resolved workspace member'));
+      expect(stderr, contains('Launching local installation'));
+    });
+  });
+}
+
+/// Fixture that activates a workspace member CLI package directly from the
+/// workspace root, where the root has the CLI as a dev_dependency.
+///
+/// This reproduces the pattern used in the melos repo:
+///
+/// - Workspace root: `melos_workspace` with `melos` as dev_dependency
+/// - CLI member: `melos` at `packages/melos`
+/// - Activated via `dart pub global activate --source=path packages/melos`
+class _WorkspaceRootActivationFixture {
+  _WorkspaceRootActivationFixture._({
+    required this.tempDir,
+    required this.workspaceRootDir,
+    required this.cliPackageDir,
+    required this.emptyDir,
+    required this.executableName,
+    required this.packageName,
+  });
+
+  final String tempDir;
+  final String workspaceRootDir;
+  final String cliPackageDir;
+  final String emptyDir;
+  final String executableName;
+  final String packageName;
+
+  void ensureUpToDateTimestamps() {
+    _ensureUpToDateTimestamps(workspaceRootDir);
+    _ensureUpToDateTimestamps(cliPackageDir);
+  }
+
+  static Future<_WorkspaceRootActivationFixture> create() async {
+    const packageName = 'ws_member_cli';
+    const executableName = 'ws_member_cli_exec';
+
+    final tempDir = Directory.systemTemp.createTempSync(
+      'cli_launcher_ws_member_',
+    );
+
+    try {
+      final workspaceDir = p.join(tempDir.path, 'workspace');
+      final cliDir = p.join(workspaceDir, 'packages', 'cli_package');
+      final emptyDir = p.join(tempDir.path, 'empty');
+
+      // Create workspace root with the CLI package as a dev_dependency.
+      Directory(workspaceDir).createSync(recursive: true);
+      File(p.join(workspaceDir, 'pubspec.yaml')).writeAsStringSync('''
+name: ws_member_workspace
+environment:
+  sdk: ^3.8.0
+workspace:
+  - packages/cli_package
+dev_dependencies:
+  $packageName:
+    path: packages/cli_package
+''');
+
+      // Create the CLI member package.
+      Directory(p.join(cliDir, 'bin')).createSync(recursive: true);
+      Directory(p.join(cliDir, 'lib')).createSync(recursive: true);
+
+      File(p.join(cliDir, 'pubspec.yaml')).writeAsStringSync('''
+name: $packageName
+version: 1.0.0
+resolution: workspace
+environment:
+  sdk: ^3.8.0
+dependencies:
+  cli_launcher:
+    path: $_cliLauncherRoot
+executables:
+  $executableName:
+''');
+
+      // Create the CLI entrypoint in the member package.
+      File(p.join(cliDir, 'bin', '$executableName.dart')).writeAsStringSync('''
+import 'package:cli_launcher/cli_launcher.dart';
+
+void main(List<String> args) {
+  launchExecutable(
+    args,
+    LaunchConfig(
+      name: ExecutableName('$executableName', package: '$packageName'),
+      entrypoint: (args, context) {
+        print(
+          'local=\${context.localInstallation?.version} '
+          'global=\${context.globalInstallation?.version}',
+        );
+      },
+    ),
+  );
+}
+''');
+
+      Directory(emptyDir).createSync();
+
+      // Resolve workspace dependencies.
+      _Fixture._runSync('dart', ['pub', 'get'], workingDirectory: workspaceDir);
+
+      // Activate the CLI member package directly from the workspace root.
+      // This mirrors how melos does:
+      //   dart pub global activate --source="path" packages/melos --executable="melos"
+      _Fixture._runSync('dart', [
+        'pub',
+        'global',
+        'activate',
+        '--source',
+        'path',
+        'packages/cli_package',
+        '--executable=$executableName',
+      ], workingDirectory: workspaceDir);
+
+      return _WorkspaceRootActivationFixture._(
+        tempDir: tempDir.path,
+        workspaceRootDir: workspaceDir,
+        cliPackageDir: cliDir,
+        emptyDir: emptyDir,
+        executableName: executableName,
+        packageName: packageName,
+      );
+    } catch (e) {
+      tempDir.deleteSync(recursive: true);
+      rethrow;
+    }
+  }
+
+  ({String stdout, String stderr}) runCli({required String workingDirectory}) {
+    final env = {...Platform.environment, 'CLI_LAUNCHER_VERBOSE': '1'};
+
+    final result = Process.runSync(
+      executableName,
+      [],
+      runInShell: true,
+      workingDirectory: workingDirectory,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+      environment: env,
+    );
+
+    if (result.exitCode != 0) {
+      throw Exception(
+        '$executableName failed with exit code ${result.exitCode}:\n'
+        'stdout: ${result.stdout}\nstderr: ${result.stderr}',
+      );
+    }
+
+    return (stdout: result.stdout as String, stderr: result.stderr as String);
+  }
+
+  void dispose() {
+    Process.runSync('dart', [
+      'pub',
+      'global',
+      'deactivate',
+      packageName,
+    ], runInShell: Platform.isWindows);
+    Directory(tempDir).deleteSync(recursive: true);
   }
 }
 
@@ -450,7 +667,9 @@ class _Fixture {
       'packages',
       'dev_dep_consumer',
     );
-    final emptyDir = p.join(workspaceDir, 'empty');
+    // Empty dir must be outside the workspace so that the "no local
+    // installation" test doesn't find the workspace root's dev_dependency.
+    final emptyDir = p.join(tempDir.path, 'empty');
 
     // v2 packages live outside the workspace to avoid name conflicts.
     final v2CliDir = p.join(tempDir.path, 'cli_package_v2');
@@ -464,12 +683,18 @@ class _Fixture {
       if (flutter) 'packages/flutter_package',
     ];
 
+    // The workspace root lists the CLI package as a dev_dependency (like the
+    // melos repo does for itself) to test that running from the workspace root
+    // correctly resolves the workspace member as the package root.
     File(p.join(workspaceDir, 'pubspec.yaml')).writeAsStringSync('''
 name: matrix_workspace
 environment:
   sdk: ^3.8.0
 workspace:
 ${workspaceMembers.map((m) => '  - $m').join('\n')}
+dev_dependencies:
+  $packageName:
+    path: packages/cli_package
 ''');
 
     _createCliPackage(

@@ -319,7 +319,9 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   Directory? lockFileRootOverride;
 
   final scriptPath = Platform.script.toFilePath();
-  if (scriptPath.contains(path.join('global_packages', executable.package))) {
+  if (scriptPath.contains(
+    path.join('global_packages', executable.package) + path.separator,
+  )) {
     // The snapshot of an executable that is globally installed in the pub cache
     // is located in the `bin` directory in a generated package.
     // This package is located in `<pub-cache>/global_packages/<package>`.
@@ -328,7 +330,7 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
       'Detected pub cache global installation at ${_relativePath(packageRoot.path)}.',
     );
   } else if (scriptPath.contains(
-    path.join('.dart_tool', 'pub', 'bin', executable.package),
+    path.join('.dart_tool', 'pub', 'bin', executable.package) + path.separator,
   )) {
     final (:root, :lockFileRoot) = _findPathActivatedPackageRoot(
       scriptPath,
@@ -433,6 +435,7 @@ ExecutableInstallation? _findLocalInstallation(
     String? resolution;
     YamlMap? dependencies;
     YamlMap? devDependencies;
+    YamlList? workspace;
 
     try {
       final pubspecYaml = loadYamlDocument(
@@ -444,6 +447,7 @@ ExecutableInstallation? _findLocalInstallation(
       resolution = pubspec['resolution'] as String?;
       dependencies = pubspec['dependencies'] as YamlMap?;
       devDependencies = pubspec['dev_dependencies'] as YamlMap?;
+      workspace = pubspec['workspace'] as YamlList?;
     } catch (error) {
       throw StateError('Could not parse ${pubspecFile.path}: $error');
     }
@@ -455,23 +459,53 @@ ExecutableInstallation? _findLocalInstallation(
             dependencies.containsKey(executable.package)) ||
         (devDependencies != null &&
             devDependencies.containsKey(executable.package))) {
+      // If this is a workspace root and the executable package is a workspace
+      // member, resolve the actual package directory instead of using the
+      // workspace root as the package root.
+      var packageRoot = start;
+      Directory? lockFileRoot;
+      if (workspace != null && !isSelf) {
+        for (final entry in workspace) {
+          final memberPath = path.join(start.path, entry as String);
+          final memberPubspecFile = File(path.join(memberPath, 'pubspec.yaml'));
+          if (memberPubspecFile.existsSync()) {
+            final memberPubspecString = memberPubspecFile.readAsStringSync();
+            final memberPubspecYaml = loadYamlDocument(
+              memberPubspecString,
+              sourceUrl: memberPubspecFile.uri,
+            );
+            final memberPubspec = memberPubspecYaml.contents as YamlMap;
+            if (memberPubspec['name'] == executable.package) {
+              packageRoot = Directory(memberPath);
+              lockFileRoot = start;
+              _debug(
+                'Resolved workspace member at '
+                '${_relativePath(memberPath)}.',
+              );
+              break;
+            }
+          }
+        }
+      } else if (resolution == 'workspace') {
+        lockFileRoot =
+            _findWorkspaceRoot(start) ??
+            (throw StateError(
+              'Could not find workspace root for package at '
+              '${start.path}. The pubspec.yaml has '
+              '"resolution: workspace" but no parent directory '
+              'contains a pubspec.yaml with a "workspace" field.',
+            ));
+      }
+
       _debug(
-        'Found local installation at ${_relativePath(start.path)} '
+        'Found local installation at ${_relativePath(packageRoot.path)} '
         '(isSelf: $isSelf, resolution: $resolution).',
       );
       return ExecutableInstallation(
         name: executable,
         isSelf: isSelf,
-        packageRoot: start,
-        lockFileRoot: resolution == 'workspace'
-            ? _findWorkspaceRoot(start) ??
-                  (throw StateError(
-                    'Could not find workspace root for package at '
-                    '${start.path}. The pubspec.yaml has '
-                    '"resolution: workspace" but no parent directory '
-                    'contains a pubspec.yaml with a "workspace" field.',
-                  ))
-            : null,
+        packageRoot: packageRoot,
+        lockFileRoot: lockFileRoot,
       );
     }
   }
