@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## 2026-03-17
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
+ - [`cli_launcher` - `v0.3.3+1`](#cli_launcher---v0331)
+
+---
+
+#### `cli_launcher` - `v0.3.3+1`
+
+ - **FIX**: Use exact path matching for package name detection in global installations ([#24](https://github.com/blaugold/cli_launcher/issues/24)). ([94d332fb](https://github.com/blaugold/cli_launcher/commit/94d332fb621f9b5f47864675e662564f9bba4c82))
+ - **DOCS**: use `<br/>` instead of `\n` in mermaid diagram node labels ([#23](https://github.com/blaugold/cli_launcher/issues/23)). ([49f2f0fc](https://github.com/blaugold/cli_launcher/commit/49f2f0fca50dff909b802f747c9e5f992c72a3e6))
+
+## 0.3.3+1
+
+ - **FIX**: Use exact path matching for package name detection in global installations ([#24](https://github.com/blaugold/cli_launcher/issues/24)). ([94d332fb](https://github.com/blaugold/cli_launcher/commit/94d332fb621f9b5f47864675e662564f9bba4c82))
+ - **DOCS**: use `<br/>` instead of `\n` in mermaid diagram node labels ([#23](https://github.com/blaugold/cli_launcher/issues/23)). ([49f2f0fc](https://github.com/blaugold/cli_launcher/commit/49f2f0fca50dff909b802f747c9e5f992c72a3e6))
+
+
 ## 2026-03-16
 
 ### Changes
