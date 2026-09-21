@@ -302,6 +302,162 @@ void main() {
           expect(stdout, contains('Assertions are enabled.'));
         });
 
+        // --- resolveLocalLaunchConfig: sdkPath ---
+        //
+        // The SDK path is used for the tools that resolve dependencies and
+        // relaunch the local installation, instead of `dart`/`flutter` from
+        // the PATH. An SDK path that does not exist proves that the tools are
+        // taken from it, since the launch then fails with the tool path.
+
+        final sdkTool = structure == PackageStructure.flutterWorkspaceMember
+            ? 'flutter'
+            : 'dart';
+
+        test('resolveLocalLaunchConfig uses sdkPath to launch', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final sdkPath = _findSdkRoot(
+            flutter: structure == PackageStructure.flutterWorkspaceMember,
+          );
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+            arguments: ['--sdk-path=$sdkPath'],
+          );
+          expect(stdout, contains('local=1.0.0'));
+          expect(stderr, contains('Launching local installation'));
+          expect(stderr, contains('Using SDK at $sdkPath.'));
+        });
+
+        test('resolveLocalLaunchConfig resolves a relative sdkPath', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final sdkPath = _findSdkRoot(
+            flutter: structure == PackageStructure.flutterWorkspaceMember,
+          );
+          final relativeSdkPath = p.relative(
+            sdkPath,
+            from: Directory(fixture!.consumerDir).resolveSymbolicLinksSync(),
+          );
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+            arguments: ['--sdk-path=$relativeSdkPath', '--print-path'],
+          );
+          expect(stdout, contains('local=1.0.0'));
+          expect(stdout, contains('PATH=${p.join(sdkPath, 'bin')}'));
+          expect(stderr, contains('Using SDK at $sdkPath.'));
+        });
+
+        test(
+          'resolveLocalLaunchConfig uses a relative sdkPath for pub get',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final pubspecFile = File(
+              p.join(fixture!.consumerDir, 'pubspec.yaml'),
+            );
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final now = DateTime.now();
+            pubspecFile.setLastModifiedSync(now);
+            lockFile.setLastModifiedSync(
+              now.subtract(const Duration(hours: 1)),
+            );
+
+            final sdkPath = _findSdkRoot(
+              flutter: structure == PackageStructure.flutterWorkspaceMember,
+            );
+            final relativeSdkPath = p.relative(
+              sdkPath,
+              from: Directory(fixture!.consumerDir).resolveSymbolicLinksSync(),
+            );
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.consumerDir,
+              arguments: ['--sdk-path=$relativeSdkPath', '--print-path'],
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(stdout, contains('PATH=${p.join(sdkPath, 'bin')}'));
+            expect(
+              stderr,
+              contains('Dependencies are out of date. Running pub get.'),
+            );
+            expect(stderr, contains('Using SDK at $sdkPath.'));
+          },
+          skip:
+              installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
+        test('resolveLocalLaunchConfig launches with tools from sdkPath', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final sdkPath = p.join(fixture!.tempDir, 'missing_sdk');
+          expect(
+            () => fixture!.runCli(
+              workingDirectory: fixture!.consumerDir,
+              arguments: ['--sdk-path=$sdkPath'],
+            ),
+            throwsA(
+              isA<Exception>().having(
+                (e) => e.toString(),
+                'message',
+                allOf(
+                  contains('Launching local installation'),
+                  contains(
+                    'Could not find the $sdkTool tool at '
+                    '${p.join(sdkPath, 'bin', sdkTool)}.',
+                  ),
+                ),
+              ),
+            ),
+          );
+        });
+
+        test(
+          'resolveLocalLaunchConfig runs pub get with tools from sdkPath',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final pubspecFile = File(
+              p.join(fixture!.consumerDir, 'pubspec.yaml'),
+            );
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final now = DateTime.now();
+            pubspecFile.setLastModifiedSync(now);
+            lockFile.setLastModifiedSync(
+              now.subtract(const Duration(hours: 1)),
+            );
+
+            final sdkPath = p.join(fixture!.tempDir, 'missing_sdk');
+            expect(
+              () => fixture!.runCli(
+                workingDirectory: fixture!.consumerDir,
+                arguments: ['--sdk-path=$sdkPath'],
+              ),
+              throwsA(
+                isA<Exception>().having(
+                  (e) => e.toString(),
+                  'message',
+                  allOf(
+                    contains('Dependencies are out of date. Running pub get.'),
+                    contains(
+                      'Could not find the $sdkTool tool at '
+                      '${p.join(sdkPath, 'bin', sdkTool)}.',
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+          skip:
+              installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
         // --- runPubGet: false ---
 
         test(
@@ -383,6 +539,29 @@ void main() {
               ? 'path-activated workspace shares lock file with global CLI'
               : null,
         );
+
+        test('relative sdkPath is used when pub get is disabled', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final sdkPath = _findSdkRoot(flutter: false);
+          final relativeSdkPath = p.relative(
+            sdkPath,
+            from: Directory(fixture!.consumerDir).resolveSymbolicLinksSync(),
+          );
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+            arguments: [
+              '--sdk-path=$relativeSdkPath',
+              '--no-pub',
+              '--print-path',
+            ],
+          );
+
+          expect(stdout, contains('local=1.0.0'));
+          expect(stdout, contains('PATH=${p.join(sdkPath, 'bin')}'));
+          expect(stderr, contains('Launching local installation via "dart"'));
+          expect(stderr, contains('Using SDK at $sdkPath.'));
+        });
       });
     }
   }
@@ -580,6 +759,28 @@ void main(List<String> args) {
     ], runInShell: Platform.isWindows);
     Directory(tempDir).deleteSync(recursive: true);
   }
+}
+
+/// Finds the root directory of the SDK that provides the `dart` tool used to
+/// run the tests, or the `flutter` tool on the PATH when [flutter] is true.
+String _findSdkRoot({required bool flutter}) {
+  if (!flutter) {
+    return p.dirname(p.dirname(Platform.resolvedExecutable));
+  }
+  final result = Process.runSync(
+    Platform.isWindows ? 'where' : 'which',
+    ['flutter'],
+    runInShell: Platform.isWindows,
+    stdoutEncoding: utf8,
+  );
+  if (result.exitCode != 0) {
+    throw Exception('Could not find the flutter tool on the PATH.');
+  }
+  final flutterTool = const LineSplitter()
+      .convert(result.stdout as String)
+      .first
+      .trim();
+  return p.dirname(p.dirname(File(flutterTool).resolveSymbolicLinksSync()));
 }
 
 /// Ensures pubspec.lock and package_config.json are newer than pubspec.yaml so
@@ -914,6 +1115,8 @@ executables:
 ''');
 
     File(p.join(dir, 'bin', '$executableName.dart')).writeAsStringSync('''
+import 'dart:io';
+
 import 'package:cli_launcher/cli_launcher.dart';
 
 void main(List<String> args) {
@@ -927,18 +1130,32 @@ void main(List<String> args) {
           'global=\${context.globalInstallation?.version}',
         );
 
+        if (args.contains('--print-path')) {
+          final pathKey = Platform.environment.keys.firstWhere(
+            (key) => key.toUpperCase() == 'PATH',
+            orElse: () => 'PATH',
+          );
+          print('PATH=\${Platform.environment[pathKey]}');
+        }
+
         assert(() {
           print('Assertions are enabled.');
           return true;
         }());
       },
       resolveLocalLaunchConfig:
-          args.contains('--local-launch-config') || args.contains('--no-pub')
+          args.contains('--local-launch-config') ||
+              args.contains('--no-pub') ||
+              args.any((arg) => arg.startsWith('--sdk-path='))
           ? (context) async {
+              final sdkPathArg = args
+                  .where((arg) => arg.startsWith('--sdk-path='))
+                  .firstOrNull;
               return LocalLaunchConfig(
                 dartRunArgs: args.contains('--local-launch-config')
                     ? ['--enable-asserts']
                     : null,
+                sdkPath: sdkPathArg?.substring('--sdk-path='.length),
                 runPubGet: !args.contains('--no-pub'),
               );
             }
