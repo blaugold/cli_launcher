@@ -571,7 +571,8 @@ typedef ResolveLocalLaunchConfig =
 /// Configuration options for launching a local installation of an executable.
 class LocalLaunchConfig {
   /// Creates a new local launch configuration.
-  LocalLaunchConfig({this.pubGetArgs, this.dartRunArgs, this.sdkPath});
+  LocalLaunchConfig({this.pubGetArgs, this.dartRunArgs, String? sdkPath})
+    : sdkPath = sdkPath == null ? null : path.normalize(path.absolute(sdkPath));
 
   /// Additional arguments to pass to `dart pub get` when dependencies are out
   /// of date.
@@ -586,6 +587,9 @@ class LocalLaunchConfig {
   /// The `dart` and `flutter` tools are taken from the `bin` directory of this
   /// SDK, and that directory is prepended to the `PATH` of the started
   /// processes, so that the tools and the launched executable use the same SDK.
+  ///
+  /// A relative path is resolved against the current working directory when
+  /// this configuration is created.
   ///
   /// When `null`, the tools are resolved from the `PATH`.
   final String? sdkPath;

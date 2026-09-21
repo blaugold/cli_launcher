@@ -328,6 +328,67 @@ void main() {
           expect(stderr, contains('Using SDK at $sdkPath.'));
         });
 
+        test('resolveLocalLaunchConfig resolves a relative sdkPath', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final sdkPath = _findSdkRoot(
+            flutter: structure == PackageStructure.flutterWorkspaceMember,
+          );
+          final relativeSdkPath = p.relative(
+            sdkPath,
+            from: Directory(fixture!.consumerDir).resolveSymbolicLinksSync(),
+          );
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+            arguments: ['--sdk-path=$relativeSdkPath', '--print-path'],
+          );
+          expect(stdout, contains('local=1.0.0'));
+          expect(stdout, contains('PATH=${p.join(sdkPath, 'bin')}'));
+          expect(stderr, contains('Using SDK at $sdkPath.'));
+        });
+
+        test(
+          'resolveLocalLaunchConfig uses a relative sdkPath for pub get',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final pubspecFile = File(
+              p.join(fixture!.consumerDir, 'pubspec.yaml'),
+            );
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final now = DateTime.now();
+            pubspecFile.setLastModifiedSync(now);
+            lockFile.setLastModifiedSync(
+              now.subtract(const Duration(hours: 1)),
+            );
+
+            final sdkPath = _findSdkRoot(
+              flutter: structure == PackageStructure.flutterWorkspaceMember,
+            );
+            final relativeSdkPath = p.relative(
+              sdkPath,
+              from: Directory(fixture!.consumerDir).resolveSymbolicLinksSync(),
+            );
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.consumerDir,
+              arguments: ['--sdk-path=$relativeSdkPath', '--print-path'],
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(stdout, contains('PATH=${p.join(sdkPath, 'bin')}'));
+            expect(
+              stderr,
+              contains('Dependencies are out of date. Running pub get.'),
+            );
+            expect(stderr, contains('Using SDK at $sdkPath.'));
+          },
+          skip:
+              installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
         test('resolveLocalLaunchConfig launches with tools from sdkPath', () {
           fixture!.ensureUpToDateTimestamps();
 
@@ -949,6 +1010,8 @@ executables:
 ''');
 
     File(p.join(dir, 'bin', '$executableName.dart')).writeAsStringSync('''
+import 'dart:io';
+
 import 'package:cli_launcher/cli_launcher.dart';
 
 void main(List<String> args) {
@@ -961,6 +1024,14 @@ void main(List<String> args) {
           'local=\${context.localInstallation?.version} '
           'global=\${context.globalInstallation?.version}',
         );
+
+        if (args.contains('--print-path')) {
+          final pathKey = Platform.environment.keys.firstWhere(
+            (key) => key.toUpperCase() == 'PATH',
+            orElse: () => 'PATH',
+          );
+          print('PATH=\${Platform.environment[pathKey]}');
+        }
 
         assert(() {
           print('Assertions are enabled.');
