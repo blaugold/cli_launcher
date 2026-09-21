@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## 2026-09-21
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
+ - [`cli_launcher` - `v0.3.4`](#cli_launcher---v034)
+
+---
+
+#### `cli_launcher` - `v0.3.4`
+
+ - **FEAT**: add option to launch without running pub get ([#27](https://github.com/blaugold/cli_launcher/issues/27)). ([8b572916](https://github.com/blaugold/cli_launcher/commit/8b572916d0ec45a06afe9e9a78d62f9615d09cc8))
+ - **FEAT**: add sdkPath to LocalLaunchConfig to run tools from a specific SDK ([#26](https://github.com/blaugold/cli_launcher/issues/26)). ([d7a049e5](https://github.com/blaugold/cli_launcher/commit/d7a049e51738fac72abb75ab2e6acc92ce11d5d2))
+
+## 0.3.4
+
+ - **FEAT**: add option to launch without running pub get ([#27](https://github.com/blaugold/cli_launcher/issues/27)). ([8b572916](https://github.com/blaugold/cli_launcher/commit/8b572916d0ec45a06afe9e9a78d62f9615d09cc8))
+ - **FEAT**: add sdkPath to LocalLaunchConfig to run tools from a specific SDK ([#26](https://github.com/blaugold/cli_launcher/issues/26)). ([d7a049e5](https://github.com/blaugold/cli_launcher/commit/d7a049e51738fac72abb75ab2e6acc92ce11d5d2))
+
+
 ## 2026-07-11
 
 ### Changes
