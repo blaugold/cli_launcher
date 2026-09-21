@@ -457,6 +457,111 @@ void main() {
               ? 'path-activated workspace shares lock file with global CLI'
               : null,
         );
+
+        // --- runPubGet: false ---
+
+        test(
+          'out of date dependencies do not trigger pub get',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final pubspecFile = File(
+              p.join(fixture!.consumerDir, 'pubspec.yaml'),
+            );
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final now = DateTime.now();
+            pubspecFile.setLastModifiedSync(now);
+            lockFile.setLastModifiedSync(
+              now.subtract(const Duration(hours: 1)),
+            );
+
+            final (:stdout, :stderr) = fixture!.runCli(
+              workingDirectory: fixture!.consumerDir,
+              arguments: ['--no-pub'],
+            );
+            expect(stdout, contains('local=1.0.0'));
+            expect(
+              stderr,
+              contains('Dependencies are out of date, but pub get is disabled'),
+            );
+            expect(stderr, isNot(contains('Running pub get')));
+          },
+          skip:
+              installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
+        // The local installation is launched without `dart run`, which would
+        // resolve dependencies implicitly, leaving the lock file untouched
+        // even though the pubspec asks for a dependency that is not in it.
+        test(
+          'launching does not resolve dependencies implicitly',
+          () {
+            final lockFileDir =
+                fixture!.workspaceRootDir ?? fixture!.consumerDir;
+            final pubspecFile = File(
+              p.join(fixture!.consumerDir, 'pubspec.yaml'),
+            );
+            final lockFile = File(p.join(lockFileDir, 'pubspec.lock'));
+
+            final pubspecContents = pubspecFile.readAsStringSync();
+            final lockContents = lockFile.readAsStringSync();
+
+            try {
+              pubspecFile.writeAsStringSync(
+                pubspecContents.replaceFirst(
+                  RegExp('^dependencies:', multiLine: true),
+                  'dependencies:\n  collection: ^1.19.0',
+                ),
+              );
+
+              final (:stdout, :stderr) = fixture!.runCli(
+                workingDirectory: fixture!.consumerDir,
+                arguments: ['--no-pub'],
+              );
+              expect(stdout, contains('local=1.0.0'));
+              expect(
+                stderr,
+                contains('Launching local installation via "dart"'),
+              );
+              expect(lockFile.readAsStringSync(), lockContents);
+            } finally {
+              pubspecFile.writeAsStringSync(pubspecContents);
+              lockFile.writeAsStringSync(lockContents);
+            }
+          },
+          skip:
+              installMethod == InstallMethod.pathActivated &&
+                  structure != PackageStructure.standalone
+              ? 'path-activated workspace shares lock file with global CLI'
+              : null,
+        );
+
+        test('relative sdkPath is used when pub get is disabled', () {
+          fixture!.ensureUpToDateTimestamps();
+
+          final sdkPath = _findSdkRoot(flutter: false);
+          final relativeSdkPath = p.relative(
+            sdkPath,
+            from: Directory(fixture!.consumerDir).resolveSymbolicLinksSync(),
+          );
+          final (:stdout, :stderr) = fixture!.runCli(
+            workingDirectory: fixture!.consumerDir,
+            arguments: [
+              '--sdk-path=$relativeSdkPath',
+              '--no-pub',
+              '--print-path',
+            ],
+          );
+
+          expect(stdout, contains('local=1.0.0'));
+          expect(stdout, contains('PATH=${p.join(sdkPath, 'bin')}'));
+          expect(stderr, contains('Launching local installation via "dart"'));
+          expect(stderr, contains('Using SDK at $sdkPath.'));
+        });
       });
     }
   }
@@ -1040,6 +1145,7 @@ void main(List<String> args) {
       },
       resolveLocalLaunchConfig:
           args.contains('--local-launch-config') ||
+              args.contains('--no-pub') ||
               args.any((arg) => arg.startsWith('--sdk-path='))
           ? (context) async {
               final sdkPathArg = args
@@ -1050,6 +1156,7 @@ void main(List<String> args) {
                     ? ['--enable-asserts']
                     : null,
                 sdkPath: sdkPathArg?.substring('--sdk-path='.length),
+                runPubGet: !args.contains('--no-pub'),
               );
             }
           : null,

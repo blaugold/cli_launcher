@@ -146,6 +146,11 @@ class ExecutableInstallation {
 
   YamlMap? _loadPubspecLockEntry() {
     final pubspecLockFile = File(path.join(lockFileRoot.path, 'pubspec.lock'));
+    if (!pubspecLockFile.existsSync()) {
+      // Without resolving dependencies there might be no lock file, in which
+      // case the installation is treated like a path dependency.
+      return null;
+    }
     final pubspecLockString = pubspecLockFile.readAsStringSync();
     final pubspecLockYaml = loadYamlDocument(
       pubspecLockString,
@@ -252,6 +257,46 @@ class ExecutableInstallation {
     );
     return upToDate;
   }
+
+  /// The file containing the entry point of the executable, or `null` if the
+  /// package containing it cannot be resolved.
+  ///
+  /// [packageRoot] is the root of the package in which the executable is
+  /// installed, which is not necessarily the package that contains it, so the
+  /// containing package is resolved through the package resolution.
+  File? get _entrypointFile {
+    final packageConfigFile = _packageConfigFile;
+    if (!packageConfigFile.existsSync()) {
+      return null;
+    }
+
+    final packageConfig =
+        jsonDecode(packageConfigFile.readAsStringSync())
+            as Map<String, Object?>;
+    final packages = packageConfig['packages'] as List<Object?>? ?? [];
+    String? rootUri;
+    for (final package in packages.cast<Map<String, Object?>>()) {
+      if (package['name'] == name.package) {
+        rootUri = package['rootUri'] as String?;
+        break;
+      }
+    }
+    if (rootUri == null) {
+      return null;
+    }
+
+    final root = path.normalize(
+      path.join(packageConfigFile.parent.path, Uri.parse(rootUri).toFilePath()),
+    );
+    final pubspec = _parsePubspec(File(path.join(root, 'pubspec.yaml')));
+    final executables = pubspec['executables'] as YamlMap?;
+    final script = executables?[name.executable] as String? ?? name.executable;
+    return File(path.join(root, 'bin', '$script.dart'));
+  }
+
+  /// The file containing the package resolution of the installation.
+  File get _packageConfigFile =>
+      File(path.join(lockFileRoot.path, '.dart_tool', 'package_config.json'));
 
   Future<void> _updateDependencies(LocalLaunchConfig? config) async {
     final sdkPath = config?.sdkPath;
@@ -571,11 +616,30 @@ typedef ResolveLocalLaunchConfig =
 /// Configuration options for launching a local installation of an executable.
 class LocalLaunchConfig {
   /// Creates a new local launch configuration.
-  LocalLaunchConfig({this.pubGetArgs, this.dartRunArgs, String? sdkPath})
-    : sdkPath = sdkPath == null ? null : path.normalize(path.absolute(sdkPath));
+  LocalLaunchConfig({
+    this.pubGetArgs,
+    this.dartRunArgs,
+    String? sdkPath,
+    this.runPubGet = true,
+  }) : sdkPath = sdkPath == null
+           ? null
+           : path.normalize(path.absolute(sdkPath));
+
+  /// Whether to resolve dependencies when they are out of date.
+  ///
+  /// When this is `false`, no `pub get` is run, neither by the launcher nor
+  /// implicitly by the Dart SDK: the local installation is launched by running
+  /// its entry point file directly, instead of through `dart run`, which always
+  /// resolves dependencies first.
+  ///
+  /// Launching fails when dependencies have never been resolved, since the
+  /// package resolution of the local installation is required to run it.
+  final bool runPubGet;
 
   /// Additional arguments to pass to `dart pub get` when dependencies are out
   /// of date.
+  ///
+  /// Ignored when [runPubGet] is `false`.
   final List<String>? pubGetArgs;
 
   /// Additional arguments to pass to `dart run` when launching the executable.
@@ -807,11 +871,17 @@ Future<void> _launchFromGlobalInstallation(
     localConfig = await config.resolveLocalLaunchConfig!(launchContext);
   }
 
+  final runPubGet = localConfig?.runPubGet ?? true;
+
   if (localInstallation != null && !localInstallation._pubspecLockIsUpToDate) {
-    // Ensure that dependencies are up to date so that we can resolve the
-    // version of the local installation.
-    _debug('Dependencies are out of date. Running pub get.');
-    await localInstallation._updateDependencies(localConfig);
+    if (runPubGet) {
+      // Ensure that dependencies are up to date so that we can resolve the
+      // version of the local installation.
+      _debug('Dependencies are out of date. Running pub get.');
+      await localInstallation._updateDependencies(localConfig);
+    } else {
+      _debug('Dependencies are out of date, but pub get is disabled.');
+    }
   }
 
   if (localInstallation != null &&
@@ -828,11 +898,30 @@ Future<void> _launchFromGlobalInstallation(
     // `dart pub get` fails on a Flutter workspace with "requires the Flutter
     // SDK". Using the Flutter tool keeps the launch consistent with how
     // dependencies are resolved in [_updateDependencies].
-    final useFlutter = localInstallation.requiresFlutter;
+    // Both `dart run` and `flutter pub run` implicitly resolve dependencies,
+    // so when pub get is disabled the entry point file is run directly with
+    // the Dart VM, which never invokes pub.
+    final useFlutter = runPubGet && localInstallation.requiresFlutter;
     final sdkPath = localConfig?.sdkPath;
+    final entrypointFile = runPubGet ? null : localInstallation._entrypointFile;
+
+    if (!runPubGet && entrypointFile?.existsSync() != true) {
+      throw _LaunchError(
+        1,
+        'Could not find the entry point of ${config.name} and running pub get '
+        'is disabled.\n'
+        'Run "dart pub get" in ${localInstallation.lockFileRoot.path} and try '
+        'again.',
+      );
+    }
+
+    final launchTool = !runPubGet
+        ? 'dart'
+        : useFlutter
+        ? 'flutter pub run'
+        : 'dart run';
     _debug(
-      'Launching local installation via '
-      '"${useFlutter ? 'flutter pub run' : 'dart run'}" '
+      'Launching local installation via "$launchTool" '
       '(isSelf: ${localInstallation.isSelf}, '
       'isFromPath: ${localInstallation.isFromPath}, '
       'local version: ${localInstallation.version}, '
@@ -845,9 +934,14 @@ Future<void> _launchFromGlobalInstallation(
       _sdkTool(sdkPath, useFlutter ? 'flutter' : 'dart'),
       [
         if (useFlutter) 'pub',
-        'run',
+        if (runPubGet)
+          'run'
+        else
+          // The entry point is run directly, so the package resolution of the
+          // local installation has to be passed explicitly.
+          '--packages=${localInstallation._packageConfigFile.path}',
         ...?localConfig?.dartRunArgs,
-        config.name.toString(),
+        if (runPubGet) config.name.toString() else entrypointFile!.path,
         _launchContextMarker,
         jsonEncode(launchContext._toJson()),
         ...args,
