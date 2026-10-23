@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
@@ -357,7 +358,9 @@ bool _pubspecDependsOnFlutter(YamlMap pubspec) {
   return deps != null && deps.containsKey('flutter');
 }
 
-ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
+Future<ExecutableInstallation> _findGlobalInstallation(
+  ExecutableName executable,
+) async {
   _debug('Finding global installation of $executable.');
   _debug('Platform.script: ${Platform.script}');
   _debug('Platform.resolvedExecutable: ${Platform.resolvedExecutable}');
@@ -376,8 +379,10 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
     _debug(
       'Detected pub cache global installation at ${_relativePath(packageRoot.path)}.',
     );
-  } else if (scriptPath.contains(
-    path.join('.dart_tool', 'pub', 'bin', executable.package) + path.separator,
+  } else if (['pub', 'dartdev'].any(
+    (tool) => scriptPath.contains(
+      path.join('.dart_tool', tool, 'bin', executable.package) + path.separator,
+    ),
   )) {
     final (:root, :lockFileRoot) = _findPathActivatedPackageRoot(
       scriptPath,
@@ -405,6 +410,10 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
       'Detected dart install installation at ${_relativePath(packageRoot.path)}.',
     );
   } else {
+    final sourceInstallation = await _findSourceInstallation(executable);
+    if (sourceInstallation != null) {
+      return sourceInstallation;
+    }
     throw StateError(
       'Could not find global installation of $executable.\n'
       'Platform.script: ${Platform.script}\n'
@@ -426,10 +435,16 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   ExecutableName executable,
 ) {
   // The snapshot of an executable that is globally installed from path
-  // is located in the `.dart_tool/pub/bin/<package>` directory in
+  // is located in `.dart_tool/{pub,dartdev}/bin/<package>` in
   // the specified package.
   final packageRoot = File(scriptPath).parent.parent.parent.parent.parent;
+  return _findInstallationPackageRoot(packageRoot, executable);
+}
 
+({Directory root, Directory? lockFileRoot}) _findInstallationPackageRoot(
+  Directory packageRoot,
+  ExecutableName executable,
+) {
   final pubspecFile = File(path.join(packageRoot.path, 'pubspec.yaml'));
   final pubspecString = pubspecFile.readAsStringSync();
   final pubspecYaml = loadYamlDocument(
@@ -460,6 +475,52 @@ ExecutableInstallation _findGlobalInstallation(ExecutableName executable) {
   }
 
   return (root: packageRoot, lockFileRoot: null);
+}
+
+/// Dart 3.14 reports the source entry point for `dart run`, rather than the
+/// cached snapshot. Use the running isolate's package resolution to identify
+/// the installation, including dependencies outside the current directory tree.
+Future<ExecutableInstallation?> _findSourceInstallation(
+  ExecutableName executable,
+) async {
+  final packageConfigUri = await Isolate.packageConfig;
+  if (packageConfigUri == null || packageConfigUri.scheme != 'file') {
+    return null;
+  }
+  final packageConfigFile = File.fromUri(packageConfigUri);
+  final packageConfig =
+      jsonDecode(packageConfigFile.readAsStringSync()) as Map<String, Object?>;
+  final packages = packageConfig['packages'] as List<Object?>? ?? [];
+  for (final package in packages.cast<Map<String, Object?>>()) {
+    if (package['name'] != executable.package) {
+      continue;
+    }
+    final rootUri = packageConfigUri.resolve(package['rootUri']! as String);
+    if (rootUri.scheme != 'file') {
+      return null;
+    }
+    final sourceRoot = Directory.fromUri(rootUri).resolveSymbolicLinksSync();
+    final script = File.fromUri(Platform.script).resolveSymbolicLinksSync();
+    if (!path.isWithin(path.join(sourceRoot, 'bin'), script)) {
+      return null;
+    }
+
+    // Pub places the package config at the resolution root, including for
+    // workspaces. This preserves the consumer's lock file and dependency source
+    // instead of treating every source entry point as a path dependency.
+    final (:root, :lockFileRoot) = _findInstallationPackageRoot(
+      packageConfigFile.parent.parent,
+      executable,
+    );
+    _debug('Detected source installation at ${_relativePath(root.path)}.');
+    return ExecutableInstallation(
+      name: executable,
+      isSelf: false,
+      packageRoot: root,
+      lockFileRoot: lockFileRoot,
+    );
+  }
+  return null;
 }
 
 ExecutableInstallation? _findLocalInstallation(
@@ -850,7 +911,7 @@ Future<void> _launchFromGlobalInstallation(
   List<String> args,
   LaunchConfig config,
 ) async {
-  final globalInstallation = _findGlobalInstallation(config.name);
+  final globalInstallation = await _findGlobalInstallation(config.name);
 
   // Try to find a local installation.
   final localInstallation = _findLocalInstallation(

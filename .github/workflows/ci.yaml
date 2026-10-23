@@ -28,3 +28,22 @@ jobs:
       - run: melos format:check
       - run: melos analyze
       - run: melos test
+
+  source-launch:
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Keep the first affected SDK pinned: Flutter master does not always
+        # ship the Dart dev release that changed Platform.script.
+        sdk: ['3.8.0', '3.14.0-281.0.dev', dev]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ matrix.sdk }}
+      - run: dart pub get
+      - run: dart analyze --fatal-infos
+      - run: dart test test/source_launch_test.dart -j 1
