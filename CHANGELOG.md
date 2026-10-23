@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## 2026-10-23
+
+### Changes
+
+---
+
+Packages with breaking changes:
+
+ - There are no breaking changes in this release.
+
+Packages with other changes:
+
+ - [`cli_launcher` - `v0.3.4+1`](#cli_launcher---v0341)
+
+---
+
+#### `cli_launcher` - `v0.3.4+1`
+
+ - **FIX**: recognize source entry points on Dart 3.14 ([#29](https://github.com/blaugold/cli_launcher/issues/29)). ([37e2fbf1](https://github.com/blaugold/cli_launcher/commit/37e2fbf111bd9a9fba8e79d498ba3ccadccea52c))
+
+## 0.3.4+1
+
+ - **FIX**: recognize source entry points on Dart 3.14 ([#29](https://github.com/blaugold/cli_launcher/issues/29)). ([37e2fbf1](https://github.com/blaugold/cli_launcher/commit/37e2fbf111bd9a9fba8e79d498ba3ccadccea52c))
+
+
 ## 2026-09-21
 
 ### Changes
