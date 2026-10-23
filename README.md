@@ -29,7 +29,7 @@ flowchart TD
     B --> C{"Launch context<br/>in args?"}
 
     C -- "Yes (relaunched by global)" --> D["Restore original working<br/>directory, call entrypoint"]
-    C -- "No (initial invocation)" --> E["Detect global installation<br/>from Platform.script"]
+    C -- "No (initial invocation)" --> E["Detect global installation<br/>from Platform.script<br/>and package resolution"]
 
     E --> F["Search for local installation<br/>(walk up from cwd, check pubspec.yaml<br/>for dependency or dev_dependency)"]
 
